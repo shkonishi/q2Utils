@@ -30,33 +30,23 @@ cat << EOS
     結果として得られたtaxonomyテーブルとASVテーブル(qza形式)を用いて、
     系統組成の棒グラフ(qzv形式)を作成します。その際オプションとしてメタデータのファイル[default:map.txt]を指定することができます。
 
-
-    リファレンスデータ入手先
-    RDP16S/UNITE    https://sourceforge.net/projects/rdp-classifier/files/RDP_Classifier_TrainingData/
-    GreenGene       ftp://greengenes.microbio.me/greengenes_release/gg_13_5/gg_13_8_otus.tar.gz
-    UNITE2.13       https://github.com/terrimporter/UNITE_ITSClassifier/releases
-                    https://plutof.ut.ee/#/doi/10.15156/BIO/786385
-    MitoFish        http://mitofish.aori.u-tokyo.ac.jp/
-                    https://github.com/aomlomics/mitohelper/tree/master/QIIME-compatible
-                    https://github.com/terrimporter/12SfishClassifier
-
     デフォルトの出力ファイル名は以下のようになっています。
         taxonomy.qza        [ASV系統推定結果]
         taxonomy.qzv        [ASV系統推定結果をqzvに変換]
         taxa-barplot.qzv    [系統組成の棒グラフ]
 
 オプション:
-  -a    分類機(qza形式) [sklearn使用時]
-  -f    リファレンスfasta(qza形式) [blast使用時]
-  -x    リファレンスfastaと対応する系統データ(qza形式) [blast使用時]
-  -n    confidence  [default of qiime:0.7 ]
-  -m    メタデータのファイル    [default: map.txt]
-  -o    ASVテーブル(qza形式)    [default: taxonomy.qza]
-  -O    ASVテーブル(tsv形式)    [default: taxonomy.tsv]
-  -b    棒グラフの出力(qzv形式) [default: taxa-barplot.qzv]
   -e    conda環境変数パス    [default: ${HOME}/miniconda3/etc/profile.d/conda.sh ]
   -q    qiime2環境名        [default: qiime2-2021.8 ]
-  -c    スレッド数           [default: -1]
+  -a    分類機(qza形式)      [sklearn使用時]
+  -f    リファレンスfasta(qza形式) [blast使用時]
+  -x    リファレンスfastaと対応する系統データ(qza形式) [blast使用時]
+  -n    confidence           [default of qiime:0.7 ]
+  -m    メタデータのファイル    [default: map.txt]
+  -o    ASVテーブル(qza形式)   [default: taxonomy.qza]
+  -O    ASVテーブル(tsv形式)   [default: taxonomy.tsv]
+  -b    棒グラフの出力(qzv形式) [default: taxa-barplot.qzv]
+  -c    CPU                  [default: -1]
   -h    ヘルプドキュメントの表示
 
 
