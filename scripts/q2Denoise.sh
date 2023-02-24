@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION=0.1.230217
+VERSION=0.1.230224
 AUTHOR=SHOGO_KONISHI
 CMDNAME=`basename $0`
 
@@ -30,8 +30,8 @@ cat << EOS
   -h    ヘルプドキュメントの表示
 
   qiime dada2 denoise-pairedにおけるオプション[--p-trunc-len-f/--p-trunc-len-r]に与える値
-  -f    Read1 で切り捨てる位置[default: 280]
-  -r    Read2 で切り捨てる位置[default: 210]
+  -F    Read1 で切り捨てる位置[default: 280]
+  -R    Read2 で切り捨てる位置[default: 210]
   
 EOS
 }
@@ -42,7 +42,7 @@ cat << EOS
 使用例: 
     $CMDNAME -s manifest.txt    
     $CMDNAME -p manifest.txt
-    $CMDNAME -p -f 270 -r 200 manifest.txt
+    $CMDNAME -p -F 270 -R 200 manifest.txt
 
 EOS
 }
@@ -57,7 +57,7 @@ EOS
 ###
 
 # 1-1. オプションの入力処理 
-while getopts spe:q:c:f:r:h OPT
+while getopts spe:q:c:F:R:h OPT
 do
   case $OPT in
     "s" ) FLG_s="TRUE" ;;
@@ -65,8 +65,8 @@ do
     "e" ) VALUE_e="$OPTARG";;
     "q" ) VALUE_q="$OPTARG";;
     "c" ) VALUE_c="$OPTARG";;
-    "f" ) VALUE_f="$OPTARG";;
-    "r" ) VALUE_r="$OPTARG";;
+    "F" ) VALUE_F="$OPTARG";;
+    "R" ) VALUE_R="$OPTARG";;
     
     "h" ) print_doc
             exit 1 ;; 
@@ -108,7 +108,7 @@ if [[ "$#" = 1 && -f "$1" ]]; then
     fi
 
 else 
-    echo "[ERROR] manifestファイル$1がみつかりません"
+    echo "[ERROR] The manifest file, ${1}, not found"
     print_usg
     exit 1
 fi
@@ -118,10 +118,10 @@ if [[ "${FLG_s}" == "TRUE" && "${FLG_p}" != "TRUE" ]]; then
     DRCTN="single"
 elif [[ "${FLG_s}" != "TRUE" && "${FLG_p}" == "TRUE" ]]; then
     DRCTN="paired"
-    if [[ -z ${VALUE_f} || -z ${VALUE_r} ]]; then
+    if [[ -z ${VALUE_F} || -z ${VALUE_R} ]]; then
         TRUNKF=280; TRUNKR=210
-    elif [[ -n ${VALUE_f} && -n ${VALUE_r} ]]; then 
-        TRUNKF=${VALUE_f}; TRUNKR=${VALUE_r}
+    elif [[ -n ${VALUE_F} && -n ${VALUE_R} ]]; then 
+        TRUNKF=${VALUE_F}; TRUNKR=${VALUE_R}
     else 
         echo -e "[ERROR]"
         exit 1

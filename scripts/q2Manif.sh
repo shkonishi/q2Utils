@@ -87,6 +87,7 @@ cat << EOS >&2
 ### Create a manifest file ###
 output file path :            [ ${OUTPUT} ]
 The delimetter of manifest :  [ ${DIV} ] 
+
 EOS
 
 ### MAIN ###
