@@ -145,7 +145,7 @@ elif [[ -z "${VALUE_t}" ]]; then
 fi
 
 # 1-6. プログラムに渡す引数の一覧
-cat << EOS 
+cat << EOS >&2
 ### Merge taxonomy into count data, ASV sequences, and ASV trees ###
 conda environmental values :        [ ${CENV} ]
 qiime2 environment :                [ ${QENV} ]

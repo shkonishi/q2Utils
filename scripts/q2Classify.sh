@@ -176,7 +176,7 @@ if [[ -n "$VALUE_m" ]]; then META=${VALUE_m}; fi
 if [[ -z "$VALUE_c" ]]; then NT=-1; else NT=${VALUE_c};fi
 
 # 1-6. プログラムに渡す引数の一覧
-cat << EOS 
+cat << EOS >&2
 ### Taxonomy classification ###
 conda environmental variables :     [ ${CENV} ]
 qiime2 environment :                [ ${QENV} ]

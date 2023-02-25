@@ -118,10 +118,10 @@ if [[ "${FLG_s}" == "TRUE" && "${FLG_p}" != "TRUE" ]]; then
     DRCTN="single"
 elif [[ "${FLG_s}" != "TRUE" && "${FLG_p}" == "TRUE" ]]; then
     DRCTN="paired"
-    if [[ -z ${VALUE_F} || -z ${VALUE_R} ]]; then
+    if [[ -z "${VALUE_F}" || -z "${VALUE_R}" ]]; then
         TRUNKF=280; TRUNKR=210
-    elif [[ -n ${VALUE_F} && -n ${VALUE_R} ]]; then 
-        TRUNKF=${VALUE_F}; TRUNKR=${VALUE_R}
+    elif [[ -n "${VALUE_F}" && -n "${VALUE_R}" ]]; then 
+        TRUNKF=${VALUE_F}; TRUNKR="${VALUE_R}"
     else 
         echo -e "[ERROR]"
         exit 1

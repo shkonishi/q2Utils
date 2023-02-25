@@ -10,22 +10,26 @@ cat << EOS
     $CMDNAME [オプション] ./fastq_dir
    
 説明:
-	q2Manif.sh    マニフェストファイル作成
+  q2Manif.sh    マニフェストファイル作成
   q2Denoise.sh  fastqファイルのインポートとデノイジング
-	q2Classify.sh 系統推定 (sk-learn/blast)
-	q2Merge.sh    系統組成表と系統樹作成,
+  q2Classify.sh 系統推定 (sk-learn/blast)
+  q2Merge.sh    系統組成表と系統樹作成
+
   output file names
 
 オプション: 
   -e    conda環境変数パス[default: \${HOME}/miniconda3/etc/profile.d/conda.sh ]
   -q    qiime2環境名[default: qiime2-2021.8 ]
-  -s    シングルエンド
-  -p    ペアエンド
+  -s|-p シングルエンドまたはペアエンド
+  -F    Read1 で切り捨てる位置[default: 280]
+  -R    Read2 で切り捨てる位置[default: 210]
   -a    分類機(qza形式) [sklearn使用時]
   -f    リファレンスfasta(qza形式) [blast使用時]
   -x    リファレンスfastaと対応する系統データ(qza形式) [blast使用時]
   -m    メタデータのファイル  
   -h    ヘルプドキュメントの表示
+
+  qiime dada2 denoise-pairedにおけるオプション[--p-trunc-len-f/--p-trunc-len-r]に与える値
 
 EOS
 }
@@ -37,9 +41,9 @@ cat << EOS
   $CMDNAME ./fastq_dir
 
   # Change environment 
-  CENV='${HOME}/miniconda3/etc/profile.d/conda.sh'
+  CENV='\${HOME}/miniconda3/etc/profile.d/conda.sh'
   QENV='qiime2-2022.2'
-  CLSF='silva-138-99-nb-classifier.qza'
+  CLSF='\${HOME}/qiime2/silva-138-99-nb-classifier.qza'
   $CMDNAME -e \${CENV} -q \${QENV} -a \${CLSF} ./fastq_dir 
 
 EOS
@@ -107,9 +111,9 @@ if [[ "${FLG_s}" == "TRUE" && "${FLG_p}" != "TRUE" ]]; then
     DRCTN="single"
 elif [[ "${FLG_s}" != "TRUE" && "${FLG_p}" == "TRUE" ]]; then
     DRCTN="paired"
-    if [[ -z ${VALUE_F} || -z ${VALUE_R} ]]; then
+    if [[ -z "${VALUE_F}" || -z "${VALUE_R}" ]]; then
         TRUNKF=270; TRUNKR=200
-    elif [[ -n ${VALUE_F} && -n ${VALUE_R} ]]; then 
+    elif [[ -n "${VALUE_F}" && -n "${VALUE_R}" ]]; then 
         TRUNKF=${VALUE_F}; TRUNKR=${VALUE_R}
     else 
         echo -e "[ERROR]"
@@ -146,22 +150,21 @@ if [[ -n "$VALUE_m" ]]; then META=${VALUE_m}; fi
 
 
 # 1-6. プログラムに渡す引数の一覧
-cat << EOS 
-### ALL ###
+cat << EOS >&2
+### Arguments for this pipe-line ###
  conda environmental variables :         [ ${CENV} ]
  qiime2 environment :                    [ ${QENV} ] 
 
-### Make manifest file & Denoising ###
  paired/single end :                     [ ${DRCTN} ]
  The position to be truncated at Read1:  [ ${TRUNKF} ]
  The position to be truncated at Read2:  [ ${TRUNKR} ]
 
-### Classifier ###
  Refference classifier for sklearn:  [ ${CLF} ]
  Refference fasta for blast :        [ ${REFA} ]
  Refference taxonomy for blast:      [ ${RETAX} ]
  metadata for drawing bar-plot       [ ${META} ]
 
+######
 EOS
 
 ### MAIN ###
@@ -173,11 +176,11 @@ EOS
 # 2-1. Create a manifest file  Date import and Denoising  --p-trunc-len-f
 if [[ "${DRCTN}" == "single" ]]; then
   q2Manif.sh -s ${FQD}
-  q2Denoise.sh -e ${CENV} -q ${QENV} -F ${TRUNKF} -R ${TRUNKR} -s manifest.txt
+  q2Denoise.sh -e ${CENV} -q ${QENV} -s manifest.txt
 
 elif [[ "${DRCTN}" == "paired" ]]; then
   q2Manif.sh -p ${FQD}
-  q2Denoise.sh -e ${CENV} -q ${QENV} -p manifest.txt
+  q2Denoise.sh -e ${CENV} -q ${QENV} -p -F ${TRUNKF} -R ${TRUNKR} manifest.txt
 fi
 
 # exit
