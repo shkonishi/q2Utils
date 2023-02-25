@@ -38,7 +38,7 @@ EOS
 
 # 使用法の表示
 function print_usg() {
-cat << EOS
+cat << EOS >&2
 使用例: 
     $CMDNAME -s manifest.txt    
     $CMDNAME -p manifest.txt
@@ -146,7 +146,7 @@ if [[ -z "$VALUE_c" ]]; then NT=4; else NT=${VALUE_c};fi
 # fi
 
 # 1-6. プログラムに渡す引数の一覧
-cat << EOS 
+cat << EOS >&2
 ### Denoising ###
 conda environmental variables :         [ ${CENV} ]
 qiime2 environment :                    [ ${QENV} ] 

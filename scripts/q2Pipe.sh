@@ -174,11 +174,11 @@ EOS
 ###
 
 # 2-1. Create a manifest file  Date import and Denoising  --p-trunc-len-f
-if [[ "${DRCTN}" == "single" ]]; then
+if [[ "${DRCTN}" = "single" ]]; then
   q2Manif.sh -s ${FQD}
   q2Denoise.sh -e ${CENV} -q ${QENV} -s manifest.txt
 
-elif [[ "${DRCTN}" == "paired" ]]; then
+elif [[ "${DRCTN}" = "paired" ]]; then
   q2Manif.sh -p ${FQD}
   q2Denoise.sh -e ${CENV} -q ${QENV} -p -F ${TRUNKF} -R ${TRUNKR} manifest.txt
 fi
