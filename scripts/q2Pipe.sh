@@ -15,12 +15,11 @@ cat << EOS
   q2Classify.sh 系統推定 (sk-learn/blast)
   q2Merge.sh    系統組成表と系統樹作成
 
-  output file names
-
 オプション: 
   -e    conda環境変数パス[default: \${HOME}/miniconda3/etc/profile.d/conda.sh ]
   -q    qiime2環境名[default: qiime2-2021.8 ]
-  -s|-p シングルエンドまたはペアエンド
+  -s    シングルエンド
+  -p    ペアエンド
   -F    Read1 で切り捨てる位置[default: 280]
   -R    Read2 で切り捨てる位置[default: 210]
   -a    分類機(qza形式) [sklearn使用時]
@@ -28,8 +27,6 @@ cat << EOS
   -x    リファレンスfastaと対応する系統データ(qza形式) [blast使用時]
   -m    メタデータのファイル  
   -h    ヘルプドキュメントの表示
-
-  qiime dada2 denoise-pairedにおけるオプション[--p-trunc-len-f/--p-trunc-len-r]に与える値
 
 EOS
 }
@@ -71,7 +68,8 @@ do
     "R" ) VALUE_R="$OPTARG";;
     "a" ) VALUE_a="$OPTARG";;
     "f" ) VALUE_f="$OPTARG";;
-    "x" ) VALUE_x="$OPTARG";; 
+    "x" ) VALUE_x="$OPTARG";;
+    "m" ) VALUE_m="$OPTARG";;
     "h" ) print_doc
             exit 1 ;; 
     *) print_doc
