@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION=0.1.230224
+VERSION=0.1.230302
 AUTHOR=SHOGO_KONISHI
 CMDNAME=`basename $0`
 
@@ -46,9 +46,8 @@ cat << EOS
   -o    ASVテーブル(qza形式)   [default: taxonomy.qza]
   -O    ASVテーブル(tsv形式)   [default: taxonomy.tsv]
   -b    棒グラフの出力(qzv形式) [default: taxa-barplot.qzv]
-  -c    CPU                  [default: -1]
+  -c    CPU                  [default: 4]
   -h    ヘルプドキュメントの表示
-
 
 EOS
 }
@@ -131,7 +130,7 @@ else
 fi
 
 # 1-5. オプション引数の判定
-## 1-5-1. リファレンスファイル(classifier)を指定 fullpathの場合、Q2DBがある場合
+## 1-5-1. リファレンスファイル(classifier)を指定 fullpathの場合/Q2DBがある場合
 if [[ -n "${Q2DB}" && -n "${VALUE_a}" && -z "${VALUE_f}" && -z "${VALUE_x}" ]] ; then
     CLF=$(dirname $Q2DB)/$(basename $Q2DB)/${VALUE_a}
     echo -e "# ${CLF} was designated as the classifier." 
@@ -154,7 +153,7 @@ else
     exit 1
 fi
 
-## 1-5-2. リファレンスファイル(fasta/taxonomy)存在確認 fullpathの場合、Q2DBがある場合
+## 1-5-2. リファレンスファイル(fasta/taxonomy)存在確認 fullpathの場合/Q2DBがある場合
 if [[ -e ${CLF} && ! -e ${REFA} && ! -e ${RETAX} ]] ; then
     echo "# ${CLF} was exists."
 elif [[ ! -e ${CLF} && -e ${REFA} && -e ${RETAX} ]] ; then
@@ -173,7 +172,7 @@ if [[ -z "$VALUE_o" ]]; then OTAX=taxonomy.qza; else OTAX=${VALUE_o}; fi
 if [[ -z "$VALUE_b" ]]; then OBP=taxa-barplot.qzv; else OBP=${VALUE_b}; fi
 if [[ -z "$VALUE_O" ]]; then OTT=taxonomy.tsv; else OTT=${VALUE_O}; fi
 if [[ -n "$VALUE_m" ]]; then META=${VALUE_m}; fi
-if [[ -z "$VALUE_c" ]]; then NT=-1; else NT=${VALUE_c};fi
+if [[ -z "$VALUE_c" ]]; then NT=4; else NT=${VALUE_c};fi
 
 # 1-6. プログラムに渡す引数の一覧
 cat << EOS >&2

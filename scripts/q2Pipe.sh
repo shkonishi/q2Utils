@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION=0.0.230224
+VERSION=0.0.230302
 AUTHOR=SHOGO_KONISHI
 CMDNAME=`basename $0`
 
@@ -37,11 +37,11 @@ cat << EOS
   # All default settings
   $CMDNAME ./fastq_dir
 
-  # Change environment 
-  CENV='\${HOME}/miniconda3/etc/profile.d/conda.sh'
+  # Change environment, paired-end trunc length setting, meta-data file indicating 
+  CENV="\${HOME}/miniconda3/etc/profile.d/conda.sh"
   QENV='qiime2-2022.2'
-  CLSF='\${HOME}/qiime2/silva-138-99-nb-classifier.qza'
-  $CMDNAME -e \${CENV} -q \${QENV} -a \${CLSF} ./fastq_dir 
+  CLSF="\${HOME}/qiime2/silva-138-99-nb-classifier.qza"
+  $CMDNAME -e \${CENV} -q \${QENV} -a \${CLSF} -F 270 -R 210 -m map.txt -p ./fastq_dir 
 
 EOS
 }
@@ -98,6 +98,7 @@ fi
 # 1-4. コマンドライン引数の判定 
 if [[ $# = 1 && -d $1 ]]; then
     FQD=`basename $1`
+    CPFQD=$(cd $(dirname $1) && pwd)/${FQD}
 else
     echo "[ERROR] Either the directory is not specified or the directory cannot be found." >&2
     print_usg
@@ -162,7 +163,7 @@ cat << EOS >&2
  Refference taxonomy for blast:      [ ${RETAX} ]
  metadata for drawing bar-plot       [ ${META} ]
 
-######
+
 EOS
 
 ### MAIN ###
@@ -173,15 +174,15 @@ EOS
 
 # 2-1. Create a manifest file  Date import and Denoising  --p-trunc-len-f
 if [[ "${DRCTN}" = "single" ]]; then
-  q2Manif.sh -s ${FQD}
+  q2Manif.sh -s ${CPFQD}
   q2Denoise.sh -e ${CENV} -q ${QENV} -s manifest.txt
 
 elif [[ "${DRCTN}" = "paired" ]]; then
-  q2Manif.sh -p ${FQD}
-  q2Denoise.sh -e ${CENV} -q ${QENV} -p -F ${TRUNKF} -R ${TRUNKR} manifest.txt
+  q2Manif.sh -p ${CPFQD}
+  q2Denoise.sh -e ${CENV} -q ${QENV} -F ${TRUNKF} -R ${TRUNKR} -p manifest.txt
 fi
 
-# exit
+# exit if No sample records found in manifest
 
 # 2-2. Classification
 if [[ -e ${CLF} && ! -e ${REFA} && ! -e ${RETAX} ]] ; then
@@ -208,4 +209,4 @@ fi
 # exit
 
 # 2-3. merge & tree
-q2Merge.sh -e ${CENV} -q ${QENV} -t table.qza -s repset.qza -u taxonomy.qza
+q2Merge.sh -e ${CENV} -q ${QENV} -t table.qza -s repset.qza taxonomy.qza
