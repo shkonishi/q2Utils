@@ -20,8 +20,8 @@ cat << EOS
   -q    qiime2環境名[default: qiime2-2021.8 ]
   -s    シングルエンド
   -p    ペアエンド
-  -F    Read1 で切り捨てる位置[default: 280]
-  -R    Read2 で切り捨てる位置[default: 210]
+  -F    Read1 で切り捨てる位置[default: 270]
+  -R    Read2 で切り捨てる位置[default: 200]
   -a    分類機(qza形式) [sklearn使用時]
   -f    リファレンスfasta(qza形式) [blast使用時]
   -x    リファレンスfastaと対応する系統データ(qza形式) [blast使用時]
@@ -40,8 +40,8 @@ cat << EOS
   # Change environment, paired-end trunc length setting, meta-data file indicating 
   CENV="\${HOME}/miniconda3/etc/profile.d/conda.sh"
   QENV='qiime2-2022.2'
-  CLSF="\${HOME}/qiime2/silva-138-99-nb-classifier.qza"
-  $CMDNAME -e \${CENV} -q \${QENV} -a \${CLSF} -F 270 -R 210 -m map.txt -p ./fastq_dir 
+  REF="\${HOME}/qiime2/silva-138-99-nb-classifier.qza"
+  $CMDNAME -e \${CENV} -q \${QENV} -a \${REF} -F 270 -R 210 -m map.txt -p ./fastq_dir 
 
 EOS
 }

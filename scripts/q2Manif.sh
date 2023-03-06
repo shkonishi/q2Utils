@@ -81,12 +81,22 @@ elif [[ "$VALUE_d" == '\t' ]] || [[ "$VALUE_d" == ',' ]]; then
 else 
   echo "[ERROR] The value for option -d must be a tab or comma." >&2
 fi
+if [[ "${FLG_s}" == "TRUE" && "${FLG_p}" != "TRUE" ]]; then 
+    DRCTN="single"
+elif [[ "${FLG_s}" != "TRUE" && "${FLG_p}" == "TRUE" ]]; then
+    DRCTN="paired"
+else 
+    echo "[ERROR] The optin flag [-s|-p] must be set."
+    exit 1
+fi
+
 
 # 1-4. プログラムに渡す引数の一覧
 cat << EOS >&2
 ### Create a manifest file ###
 output file path :            [ ${OUTPUT} ]
 The delimetter of manifest :  [ ${DIV} ] 
+Paired ore single end :       [ ${DRCTN} ]
 
 EOS
 
