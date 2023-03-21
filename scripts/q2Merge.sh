@@ -239,11 +239,11 @@ function mtseq () {
     fi
 
 }
-## 2-2.3 関数定義, taxonomyデータから最も上位のタクソンを抽出,silva/greengeneで記述が異なる
+## 2-2.3 関数定義, taxonomyデータから最も下位のタクソンを抽出,silva/greengeneで記述が異なる
 function id_tax () {
     # $9:s, $8:g, $7:f, $6:o, $5:c, $4:p, $3:k/d
     cat $1 \
-    | awk -F"\t" '{if($3~/k__/){sub("k__","", $3); r="gg"}else if($3~/d__/){sub("d__","", $3);r="slv"}; \
+    | awk -F"\t" '{if($3~/k__/){sub("k__","", $3); r="gg"}else if($3~/d__/){sub("d__","", $3);r="slv"} else if($3~/Unassigned/){r="unc"}; \
     sub("s__", "", $9); sub("g__","", $8); sub("f__","",$7); sub("o__","",$6); sub("c__","",$5); sub("p__","",$4); \
     if ($9 !="") print $1 "\t" "s__"$8"_"$9 ; \
     else if ($9=="" && $8 !="") print $1 "\t" "g__"$8 ; \
@@ -251,10 +251,9 @@ function id_tax () {
     else if ($9=="" && $8=="" && $7 =="" && $6 !="") print $1 "\t" "o__" $6 ; \
     else if ($9=="" && $8=="" && $7 =="" && $6 =="" && $5 !="" ) print $1 "\t" "c__" $5 ; \
     else if ($9=="" && $8=="" && $7 =="" && $6 =="" && $5 =="" && $4 !="" ) print $1 "\t" "p__" $4 ; \
-    else if ($9=="" && $8=="" && $7 =="" && $6 =="" && $5 =="" && $4 =="" && $3 !="" && r="gg" ) print $1 "\t" "k__" $3 ; \
-    else if ($9=="" && $8=="" && $7 =="" && $6 =="" && $5 =="" && $4 =="" && $3 !="" && r="slv" ) print $1 "\t" "d__" $3 ; \
-    else print $1 "\t" "Unassigned" }'
-
+    else if ($9=="" && $8=="" && $7 =="" && $6 =="" && $5 =="" && $4 =="" && $3 !="" && r=="gg" ) print $1 "\t" "k__" $3 ; \
+    else if ($9=="" && $8=="" && $7 =="" && $6 =="" && $5 =="" && $4 =="" && $3 !="" && r=="slv" ) print $1 "\t" "d__" $3 ; \
+    else if ($9=="" && $8=="" && $7 =="" && $6 =="" && $5 =="" && $4 =="" && $3 !="" && r=="unc" ) print $1 "\t"$3 ; }'
 }
 
 ## 2-2.4 関数定義, fastaファイルから指定idを除外
@@ -326,12 +325,16 @@ if [[ -f ${SEQ} ]] ; then
     if [[ $UAT = "TRUE" ]]; then
         unid=(`cat taxonomy.tsv | awk -F"\t" '$2~/Unassigned/{print $1}'`)
         if [[ "${#unid[@]}" > 0 ]]; then 
+            echo -e "# Remove unassigned ASV"
+            echo -e "${unid[@]}" | tr ' ' '\n'
             faGetrest "${unid[*]}" dna-sequences.fasta dna-sequences_ast.fasta
             qiime tools import --input-path dna-sequences_ast.fasta --output-path repset_tmp.qza --type 'FeatureData[Sequence]'
         else 
+            echo "# Unassigne ASV does not exist."
             qiime tools import --input-path dna-sequences.fasta --output-path repset_tmp.qza --type 'FeatureData[Sequence]'
         fi
-    else 
+    else
+        echo  
         cp ${SEQ} repset_tmp.qza
     fi
   
@@ -350,13 +353,11 @@ if [[ -f ${SEQ} ]] ; then
     qiime alignment mask --i-alignment aligned-repset.qza --o-masked-alignment masked-aligned-repset.qza
     ## 4-4. 無根系統樹作成
     qiime phylogeny fasttree --i-alignment masked-aligned-repset.qza --o-tree unrooted-tree.qza
-    ## 4-5. midpoint root 
+    ## 4-5. Midpoint root 
     qiime phylogeny midpoint-root --i-tree unrooted-tree.qza --o-rooted-tree rooted-tree.qza
-    ## 4-6. export tree as newick format
+    ## 4-6. Export tree as newick format and modify nodes of the tree.
     qiime tools export --input-path rooted-tree.qza --output-path ${OUTRE}
     TRE="${OUTRE}/tree.nwk"
-
-    ## 4-7. newick-treeの編集。
     id_tax ${OTF} \
     | awk -F"\t" 'NR==FNR{arr[$1]=$2;} \
     NR!=FNR{for (i in arr){gsub(i, arr[i])};  print; }' - ${TRE} > ${XTRE}
