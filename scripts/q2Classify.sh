@@ -36,7 +36,7 @@ cat << EOS
         taxa-barplot.qzv    [系統組成の棒グラフ]
 
 オプション:
-  -e    conda環境変数パス    [default: ${HOME}/miniconda3/etc/profile.d/conda.sh ]
+  -e    conda環境変数パス    [default: \${HOME}/miniconda3/etc/profile.d/conda.sh ]
   -q    qiime2環境名        [default: qiime2-2021.8 ]
   -a    分類機(qza形式)      [sklearn使用時]
   -f    リファレンスfasta(qza形式) [blast使用時]
@@ -105,7 +105,11 @@ shift `expr $OPTIND - 1`
 
 # 1-2. conda環境変数ファイルの存在確認
 if [[ -z "$VALUE_e" ]]; then CENV="${HOME}/miniconda3/etc/profile.d/conda.sh"; else CENV=${VALUE_e}; fi
-if [[ -f "${CENV}" ]]; then : ; else echo "[ERROR] The file for the conda environment variable cannot be found. ${CENV}"; exit 1; fi
+if [[ ! -f "${CENV}" ]]; then
+ echo "[ERROR] The file for the conda environment variable cannot be found. ${CENV}"
+ print_usg
+ exit 1
+fi
 
 # 1-3. qiime2環境の存在確認
 if [[ -z "$VALUE_q" ]]; then QENV="qiime2-2022.2"; else QENV=${VALUE_q}; fi
@@ -114,6 +118,7 @@ if conda info --envs | awk '!/^#/{print $1}'| grep -qx "^${QENV}$" ; then
 else 
     echo "[ERROR] There is no ${QENV} environment."
     conda info --envs
+    print_usg
     exit 1
 fi
 
@@ -203,7 +208,7 @@ EOS
 
 # 2-1. qiime2 起動
 source ${CENV}
-conda activate ${QENV}
+if echo ${CENV} | grep -qx "anaconda" ; then source activate ${QENV}; else conda activate ${QENV}; fi
 
 # 2-2. qiime feature-lassifierを実行
 if [[ -f ${CLF} && ! -f ${REFA} && ! -f ${RETAX} ]]; then

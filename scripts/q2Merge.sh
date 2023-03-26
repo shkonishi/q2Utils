@@ -150,15 +150,15 @@ cat << EOS >&2
 conda environmental values :        [ ${CENV} ]
 qiime2 environment :                [ ${QENV} ]
 
-The input taxonomy file path:       [ ${TAX}  ]
-The input ASV table file path:      [ ${TAB}  ]
-The input ASV file path:            [ ${SEQ}  ]
+The input taxonomy file path:       [ ${TAX} ]
+The input ASV table file path:      [ ${TAB} ]
+The input ASV file path:            [ ${SEQ} ]
 
-output taxonomy count table:        [ ${OTT}  ]
-output taxonomy ASV sequence table: [ ${OTF}  ]
-output directory for phylogeny:     [ ${OUTRE}  ]
+output taxonomy count table:        [ ${OTT} ]
+output taxonomy ASV sequence table: [ ${OTF} ]
+output directory for phylogeny:     [ ${OUTRE} ]
 output taxonomy tree:               [ ${XTRE} ]
-Remove Unassigned taxon from tree:  [ ${UAT}  ]
+Remove Unassigned taxon from tree:  [ ${UAT} ]
 
 EOS
 
@@ -174,7 +174,7 @@ EOS
 
 # 2-1. qiime2起動
 source ${CENV}
-conda activate ${QENV}
+if echo ${CENV} | grep -qx "anaconda" ; then source activate ${QENV}; else conda activate ${QENV}; fi
 
 # 2-2. 関数定義 
 ## 2-2.1 関数定義, ASVテーブルとtaxonomyデータとASV配列を結合する。 

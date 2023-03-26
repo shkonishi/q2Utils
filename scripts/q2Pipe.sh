@@ -34,14 +34,17 @@ EOS
 function print_usg () {
 cat << EOS
 使用例: 
-  # All default settings
+  # All default setting
   $CMDNAME ./fastq_dir
 
-  # Change environment, paired-end trunc length setting, meta-data file indicating 
+  # Change environment, and single-end setting
   CENV="\${HOME}/miniconda3/etc/profile.d/conda.sh"
   QENV='qiime2-2022.2'
   REF="\${HOME}/qiime2/silva-138-99-nb-classifier.qza"
-  $CMDNAME -e \${CENV} -q \${QENV} -a \${REF} -F 270 -R 210 -m map.txt -p ./fastq_dir 
+  $CMDNAME -e \${CENV} -q \${QENV} -a \${REF} -s ./fastq_dir 
+
+  # paired-end trunc length setting, meta-data file indicating 
+  $CMDNAME -e \${CENV} -q \${QENV} -a \${REF} -F 270 -R 210 -m map.txt -p ./fastq_dir
 
 EOS
 }
@@ -83,7 +86,11 @@ shift `expr $OPTIND - 1`
 
 # 1-2. conda環境変数ファイルの存在確認
 if [[ -z "$VALUE_e" ]]; then CENV="${HOME}/miniconda3/etc/profile.d/conda.sh"; else CENV=${VALUE_e}; fi
-if [[ -f "${CENV}" ]]; then : ; else echo "[ERROR] The file for the conda environment variable cannot be found. ${CENV}"; exit 1; fi
+if [[ ! -f "${CENV}" ]]; then
+ echo "[ERROR] The file for the conda environment variable cannot be found. ${CENV}"
+ print_usg
+ exit 1
+fi
 
 # 1-3. qiime2環境の存在確認
 if [[ -z "$VALUE_q" ]]; then QENV="qiime2-2022.2"; else QENV=${VALUE_q}; fi
@@ -92,6 +99,7 @@ if conda info --envs | awk '!/^#/{print $1}'| grep -qx "^${QENV}$" ; then
 else 
     echo "[ERROR] There is no ${QENV} environment."
     conda info --envs
+    print_usg
     exit 1
 fi
 

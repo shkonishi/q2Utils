@@ -29,9 +29,13 @@ cat << EOS
   -c    スレッド数[default: 4]
   -h    ヘルプドキュメントの表示
 
-  qiime dada2 denoise-pairedにおけるオプション[--p-trunc-len-f/--p-trunc-len-r]に与える値
+ qiime dada2 denoise-pairedにおけるオプション[--p-trunc-len-f/--p-trunc-len-r]に与える値
   -F    Read1 で切り捨てる位置[default: 280]
   -R    Read2 で切り捨てる位置[default: 210]
+
+ qiime dada2 denoise-singleにおけるオプション[--p-trunc-len]に与える値
+  -l    qualityフィルタリングの結果、この値より短いリードは破棄[default: 0]
+        実際にはこの値のASV以外は捨てられてしまう(バグではないかと思われる)。
   
 EOS
 }
@@ -57,7 +61,7 @@ EOS
 ###
 
 # 1-1. オプションの入力処理 
-while getopts spe:q:c:F:R:h OPT
+while getopts spe:q:c:F:R:l:h OPT
 do
   case $OPT in
     "s" ) FLG_s="TRUE" ;;
@@ -67,6 +71,7 @@ do
     "c" ) VALUE_c="$OPTARG";;
     "F" ) VALUE_F="$OPTARG";;
     "R" ) VALUE_R="$OPTARG";;
+    "l" ) VALUE_l="$OPTARG";;
     
     "h" ) print_doc
             exit 1 ;; 
@@ -81,7 +86,11 @@ shift `expr $OPTIND - 1`
 
 # 1-2. conda環境変数ファイルの存在確認
 if [[ -z "$VALUE_e" ]]; then CENV="${HOME}/miniconda3/etc/profile.d/conda.sh"; else CENV=${VALUE_e}; fi
-if [[ -f "$CENV" ]]; then : ; else echo "[ERROR] There is not ${CENV}."; exit 1; fi
+if [[ ! -f "${CENV}" ]]; then
+ echo "[ERROR] The file for the conda environment variable cannot be found. ${CENV}"
+ print_usg
+ exit 1
+fi
 
 # 1-3. qiime2環境の存在確認
 if [[ -z "$VALUE_q" ]]; then QENV="qiime2-2022.2"; else QENV=${VALUE_q}; fi
@@ -90,6 +99,7 @@ if conda info --envs | awk '!/^#/{print $1}'| grep -qx "^${QENV}$" ; then
 else 
     echo "[ERROR] There is no ${QENV} environment."
     conda info --envs
+    print_usg
     exit 1
 fi
 
@@ -116,10 +126,12 @@ fi
 # 1-5. オプション引数の判定
 if [[ "${FLG_s}" == "TRUE" && "${FLG_p}" != "TRUE" ]]; then 
     DRCTN="single"
+    if [[ -z "$VALUE_l" ]]; then TRUNKL=0; else TRUNKL=${VALUE_l}; fi
+
 elif [[ "${FLG_s}" != "TRUE" && "${FLG_p}" == "TRUE" ]]; then
     DRCTN="paired"
     if [[ -z "${VALUE_F}" || -z "${VALUE_R}" ]]; then
-        TRUNKF=280; TRUNKR=210
+        TRUNKF=270; TRUNKR=200
     elif [[ -n "${VALUE_F}" && -n "${VALUE_R}" ]]; then 
         TRUNKF=${VALUE_F}; TRUNKR="${VALUE_R}"
     else 
@@ -148,14 +160,15 @@ if [[ -z "$VALUE_c" ]]; then NT=4; else NT=${VALUE_c};fi
 # 1-6. プログラムに渡す引数の一覧
 cat << EOS >&2
 ### Denoising ###
-conda environmental variables :         [ ${CENV} ]
-qiime2 environment :                    [ ${QENV} ] 
-manifest file:                          [ ${MNFST} ] 
-format of manifest file :               [ ${MFMT} ]  
-paired/single end :                     [ ${DRCTN} ]
-The position to be truncated at Read1:  [ ${TRUNKF} ]
-The position to be truncated at Read2:  [ ${TRUNKR} ]
-number of threads :                     [ ${NT} ] 
+conda environmental variables :                             [ ${CENV} ]
+qiime2 environment :                                        [ ${QENV} ] 
+Manifest file:                                              [ ${MNFST} ] 
+Format of manifest file :                                   [ ${MFMT} ]  
+Paired/Single end :                                         [ ${DRCTN} ]
+The position to be truncated at Read1:                      [ ${TRUNKF} ]
+The position to be truncated at Read2:                      [ ${TRUNKR} ]
+Reads shorter than this value will be discarded(single).    [ ${TRUNKL} ]
+Number of threads :                                         [ ${NT} ] 
 EOS
 
 
@@ -168,7 +181,11 @@ EOS
 
 # 2-1. qiime2起動
 source ${CENV}
-conda activate ${QENV}
+if echo ${CENV} | grep -qx "anaconda" ; then 
+ source activate ${QENV}
+ else conda activate ${QENV}
+fi
+
 
 # 2-2. fastqのインポートとデノイジング
 if [[ "${DRCTN}" == "single" ]]; then
@@ -192,21 +209,24 @@ if [[ "${DRCTN}" == "single" ]]; then
     # qiime dada2 denoise-
     qiime dada2 denoise-single \
     --i-demultiplexed-seqs seq.qza \
-    --p-trunc-len 0 \
+    --p-trunc-len ${TRUNKL} \
     --o-representative-sequences repset.qza \
     --o-table table.qza \
-    --p-n-threads ${NT}  \
+    --p-n-threads ${NT} \
     --o-denoising-stats denoising-stats.qza
 
     ## table.qza がなければexit
-    if [[ ! -f table.qza || ! -f denoising-stats.qza ]]; then echo "[ERROR] The table.qza was not output."; exit 1; fi
+    if [[ ! -f table.qza || ! -f denoising-stats.qza ]]; then echo "[ERROR] The table.qza was not created."; exit 1; fi
 
 elif [[ "${DRCTN}" == "paired" ]]; then
-    # input formatの指定
+    #  input formatの指定
     if [[ "${MFMT}" == "csv" ]]; then 
         INFMT='PairedEndFastqManifestPhred33' 
     elif [[ "${MFMT}" == "tsv" ]]; then 
         INFMT='PairedEndFastqManifestPhred33V2' 
+    else 
+        echo -e "[ERROR] The manifest file must be 'csv' or 'tsv'. "
+        exit 1
     fi
 
     #  qiime tools import 
