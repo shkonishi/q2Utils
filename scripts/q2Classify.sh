@@ -113,7 +113,7 @@ fi
 
 # 1-3. qiime2環境の存在確認
 if [[ -z "$VALUE_q" ]]; then QENV="qiime2-2022.2"; else QENV=${VALUE_q}; fi
-if conda info --envs | awk '!/^#/{print $1}'| grep -qx "^${QENV}$" ; then
+if conda info --envs | awk '!/^#/{print $1}'| grep -q "^${QENV}$" ; then
     :
 else 
     echo "[ERROR] There is no ${QENV} environment."
@@ -208,7 +208,7 @@ EOS
 
 # 2-1. qiime2 起動
 source ${CENV}
-if echo ${CENV} | grep -qx "anaconda" ; then source activate ${QENV}; else conda activate ${QENV}; fi
+if echo ${CENV} | grep -q "anaconda" ; then source activate ${QENV}; else conda activate ${QENV}; fi
 
 # 2-2. qiime feature-lassifierを実行
 if [[ -f ${CLF} && ! -f ${REFA} && ! -f ${RETAX} ]]; then

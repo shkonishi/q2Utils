@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION=0.1.230305
+VERSION=0.1.230330
 AUTHOR=SHOGO_KONISHI
 CMDNAME=`basename $0`
 
@@ -91,7 +91,7 @@ if [[ -f "${CENV}" ]]; then : ; else echo "[ERROR] The file for the conda enviro
 
 # 1-3. qiime2環境の存在確認
 if [[ -z "${VALUE_q}" ]]; then QENV="qiime2-2022.8"; else QENV=${VALUE_q}; fi
-if conda info --envs | awk '!/^#/{print $1}'| grep -qx "^${QENV}$" ; then
+if conda info --envs | awk '!/^#/{print $1}'| grep -q "^${QENV}$" ; then
     :
 else 
     echo "[ERROR] The conda environment ${QENV} was not found."
@@ -174,53 +174,44 @@ EOS
 
 # 2-1. qiime2起動
 source ${CENV}
-if echo ${CENV} | grep -qx "anaconda" ; then source activate ${QENV}; else conda activate ${QENV}; fi
+if echo ${CENV} | grep -q "anaconda" ; then source activate ${QENV}; else conda activate ${QENV}; fi
 
 # 2-2. 関数定義 
 ## 2-2.1 関数定義, ASVテーブルとtaxonomyデータとASV配列を結合する。 
 function mtax () {
-    TTAX=$1; TTAB=$2; TSEQ=$3; 
+    TTAX=$1; TTAB=$2 
     # カウントデータからヘッダ行抽出
-    HD=`grep "^#OTU ID" ${TTAB} | sed 's/^#OTU ID//'`
-    if [[ -f ${TTAX} && -f ${TTAB} && -f ${TSEQ}  ]]; then
-        HDC=(`echo "ASV_ID confidence domain phylum class order family genus species ${HD} sequence"`)
-    elif [[ -f ${TTAX} && -f ${TTAB} && ! -f ${TSEQ} ]]; then
-        HDC=(`echo "ASV_ID confidence domain phylum class order family genus species ${HD}" `)
-    else
-        echo "[ERROR]"
-    fi
+    HD=(`grep "^#OTU ID" ${TTAB} | sed 's/^#OTU ID//'`)
+    # taxonomyデータからrankの配列を取り出す (7列もしくは8列の場合がある)
+    RANK=(`cut -f2 $TTAX | awk -F"; " '{if(NF==8){ \
+    sub("_.*","",$1);sub("_.*","",$2);sub("_.*","",$3);sub("_.*","",$4); \
+    sub("_.*","",$5); sub("_.*","",$6);sub("_.*","",$7); sub("_.*","",$8); \
+    print $1" "$2" "$3" "$4" "$5" "$6" "$7" "$8;} \
+    else if(NF==7){sub("_.*","",$1);sub("_.*","",$2);sub("_.*","",$3);sub("_.*","",$4); \
+    sub("_.*","",$5); sub("_.*","",$6);sub("_.*","",$7); print $1" "$2" "$3" "$4" "$5" "$6" "$7;}}' | head -1`)
+    # ヘッダ行作成
+    HDC=(`echo ASV_ID confidence ${RANK[@]} ${HD[@]}`)
 
     # idの同一性チェック(taxonomyとASVテーブルをマージする場合)
     id_tab=(`grep -v "^#" ${TTAB} | awk -F"\t" '{print $1}'`)
     id_tax=(`grep -v "^Feature" ${TTAX} | awk -F"\t" '{print $1}'`)
     un1=(`echo ${id_tab[*]} ${id_tax[*]} | tr ' ' '\n' | sort | uniq -c | awk '{print $1 }' | uniq`) 
-    
-    # idの同一性チェック(taxonomyとASVテーブルとASV配列をマージする場合)
-    if [[ -n ${TSEQ} ]]; then
-        id_seq=(`grep "^>" dna-sequences.fasta | sed 's/^>//'`)
-        un2=(`echo ${id_tab[*]} ${id_seq[*]} | tr ' ' '\n' | sort | uniq -c | awk '{print $1 }' | uniq`)
-    fi
 
-    # Merge
-    if [[ -z ${TSEQ} && ${#un1[@]} == 1 && ${un1[@]} == 2 ]]; then
-        echo ${HDC[@]} | tr ' ' '\t'
+    # Merge 
+    if [[ ${#un1[@]} == 1 && ${un1[@]} == 2 ]]; then
+        NC=`cat ${TTAX} | cut -f2 | awk -F"; " '{print NF}' | sort -u | sort -nr | head -1`
+        echo ${HDC[@]} | tr ' ' '\t' ;
         paste <(cat ${TTAX} | awk -F"\t" 'NR>1{print $1"\t"$3}' | sort -k1,1 ) \
-        <(cat ${TTAX} | awk -F"\t" 'NR>1{print $1"\t"$2}' | sort -k1,1 | awk -F"\t" '{print $2}'\
-        | awk -F"; " '{print $1"\t"$2"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7}') \
-        <( awk 'NR>2{print}' ${TTAB} | sort -k1,1 | cut -f 2- ) 
-    
-
-    elif [[ -n ${TSEQ} && ${#un1[@]} == 1 && ${un1[@]} == 2 && ${#un2[@]} == 1 && ${un2[@]} == 2 ]]; then
-        echo ${HDC[@]} | tr ' ' '\t'
-        paste <(cat ${TTAX} | awk -F"\t" 'NR>1{print $1"\t"$3}' | sort -k1,1 ) \
-        <(cat ${TTAX} | awk -F"\t" 'NR>1{print $1"\t"$2}' | sort -k1,1 | awk -F"\t" '{print $2}'\
-        | awk -F"; " '{print $1"\t"$2"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7}') \
-        <( awk 'NR>2{print}' ${TTAB} | sort -k1,1 | cut -f 2-) \
-        <( cat ${TSEQ} | awk 'BEGIN{RS=">"; FS="\n"} NR>1 {print $1"\t"$2;}' | sort -k1,1 | cut -f 2-)
+        <(cat ${TTAX} | awk -F"\t" 'NR>1{print $1"\t"$2}' | sort -k1,1 | cut -f2 \
+        | awk -F"; " -v NC=${NC} '{if(NC==8){print $1"\t"$2"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7"\t"$8 } \
+        else if(NC==7){print $1"\t"$2"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7 }}') \
+        <( awk 'NR>2{print}' ${TTAB} | sort -k1,1 | cut -f 2- )
+        
     else 
         echo "[ERROR] The file format of inputs was invalid."
     fi
 }
+
 ## 2-2.2 関数定義, taxonomyデータとASV配列を結合
 function mtseq () {
     TTAX=$1; TSEQ=$2; 
@@ -239,21 +230,24 @@ function mtseq () {
     fi
 
 }
-## 2-2.3 関数定義, taxonomyデータから最も下位のタクソンを抽出,silva/greengeneで記述が異なる
+## 2-2.3 関数定義, taxonomyデータから最も下位のタクソンを抽出, で記述が異なる
+# function id_tax () {
+#     # $9:s, $8:g, $7:f, $6:o, $5:c, $4:p, $3:k/d
+#     cat $1 \
+#     | awk -F"\t" '{if($3~/k__/){sub("k__","", $3); r="gg"}else if($3~/d__/){sub("d__","", $3);r="slv"} else if($3~/Unassigned/){r="unc"}; \
+#     sub("s__", "", $9); sub("g__","", $8); sub("f__","",$7); sub("o__","",$6); sub("c__","",$5); sub("p__","",$4); \
+#     if ($9 !="") print $1 "\t" "s__"$8"_"$9 ; \
+#     else if ($9=="" && $8 !="") print $1 "\t" "g__"$8 ; \
+#     else if ($9=="" && $8=="" && $7 !="") print $1 "\t" "f__" $7 ; \
+#     else if ($9=="" && $8=="" && $7 =="" && $6 !="") print $1 "\t" "o__" $6 ; \
+#     else if ($9=="" && $8=="" && $7 =="" && $6 =="" && $5 !="" ) print $1 "\t" "c__" $5 ; \
+#     else if ($9=="" && $8=="" && $7 =="" && $6 =="" && $5 =="" && $4 !="" ) print $1 "\t" "p__" $4 ; \
+#     else if ($9=="" && $8=="" && $7 =="" && $6 =="" && $5 =="" && $4 =="" && $3 !="" && r=="gg" ) print $1 "\t" "k__" $3 ; \
+#     else if ($9=="" && $8=="" && $7 =="" && $6 =="" && $5 =="" && $4 =="" && $3 !="" && r=="slv" ) print $1 "\t" "d__" $3 ; \
+#     else if ($9=="" && $8=="" && $7 =="" && $6 =="" && $5 =="" && $4 =="" && $3 !="" && r=="unc" ) print $1 "\t"$3 ; }'
+# }
 function id_tax () {
-    # $9:s, $8:g, $7:f, $6:o, $5:c, $4:p, $3:k/d
-    cat $1 \
-    | awk -F"\t" '{if($3~/k__/){sub("k__","", $3); r="gg"}else if($3~/d__/){sub("d__","", $3);r="slv"} else if($3~/Unassigned/){r="unc"}; \
-    sub("s__", "", $9); sub("g__","", $8); sub("f__","",$7); sub("o__","",$6); sub("c__","",$5); sub("p__","",$4); \
-    if ($9 !="") print $1 "\t" "s__"$8"_"$9 ; \
-    else if ($9=="" && $8 !="") print $1 "\t" "g__"$8 ; \
-    else if ($9=="" && $8=="" && $7 !="") print $1 "\t" "f__" $7 ; \
-    else if ($9=="" && $8=="" && $7 =="" && $6 !="") print $1 "\t" "o__" $6 ; \
-    else if ($9=="" && $8=="" && $7 =="" && $6 =="" && $5 !="" ) print $1 "\t" "c__" $5 ; \
-    else if ($9=="" && $8=="" && $7 =="" && $6 =="" && $5 =="" && $4 !="" ) print $1 "\t" "p__" $4 ; \
-    else if ($9=="" && $8=="" && $7 =="" && $6 =="" && $5 =="" && $4 =="" && $3 !="" && r=="gg" ) print $1 "\t" "k__" $3 ; \
-    else if ($9=="" && $8=="" && $7 =="" && $6 =="" && $5 =="" && $4 =="" && $3 !="" && r=="slv" ) print $1 "\t" "d__" $3 ; \
-    else if ($9=="" && $8=="" && $7 =="" && $6 =="" && $5 =="" && $4 =="" && $3 !="" && r=="unc" ) print $1 "\t"$3 ; }'
+    paste <(cut -f1 ${1}| awk 'NR>1' ) <(cut -f2 ${1} | awk -F"; " 'NR>1{print $NF}')
 }
 
 ## 2-2.4 関数定義, fastaファイルから指定idを除外
@@ -268,12 +262,12 @@ function faGetrest (){
 # 2-3. データを結合
 ## taxonomyファイルの展開
 unzip -q ${TAX} -d tmp
-TAXTSV='tmp/*/data/taxonomy.tsv'
-if [[ -f $(echo ${TAXTSV}) ]]; then
-    mv ${TAXTSV} ./ ; rm -r ./tmp
-else
-    echo -e "[ERROR] The specified argument ${TAX} may not be a taxonomy."
-    exit 1
+if  ls tmp/*/data/taxonomy.tsv >/dev/null 2>&1 ; then 
+    mv tmp/*/data/taxonomy.tsv ./
+    TAXTSV='taxonomy.tsv'
+else 
+  echo -e "[ERROR] The specified argument ${TAX} may not be a taxonomy."
+  exit 1
 fi
 
 ## ASVテーブルかつまたはASV配列の展開、及びとtaxonomyとの結合
@@ -304,7 +298,7 @@ elif [[ -n "${TAB}" && -z "${SEQ}" ]]; then
         exit 1
     fi
 
-elif [[ -z "${TAB}" && -n "${SEQ}" ]] ; then
+elif [[ -z "${TAB}" && -n "${SEQ}" ]]; then
     unzip -q ${SEQ} -d tmp
     ASVFA='tmp/*/data/dna-sequences.fasta'
     if [[ -f $(echo ${ASVFA}) ]]; then 
@@ -357,8 +351,10 @@ if [[ -f ${SEQ} ]] ; then
     qiime phylogeny midpoint-root --i-tree unrooted-tree.qza --o-rooted-tree rooted-tree.qza
     ## 4-6. Export tree as newick format and modify nodes of the tree.
     qiime tools export --input-path rooted-tree.qza --output-path ${OUTRE}
+    
+    ## 4-7. Modify nodes of the newick tree.
     TRE="${OUTRE}/tree.nwk"
-    id_tax ${OTF} \
+    id_tax ${TAXTSV} \
     | awk -F"\t" 'NR==FNR{arr[$1]=$2;} \
     NR!=FNR{for (i in arr){gsub(i, arr[i])};  print; }' - ${TRE} > ${XTRE}
 
