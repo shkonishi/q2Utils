@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION=0.1.230330
+VERSION=0.1.230403
 AUTHOR=SHOGO_KONISHI
 CMDNAME=`basename $0`
 
@@ -165,11 +165,12 @@ EOS
 ### MAIN ###
 # 2-1. qiime2起動
 # 2-2. 関数定義
-# 2-3. データを結合 qza形式のファイル(taxonomyデータ,ASVテーブル,ASV配列)をunzipしてテキストファイル取り出す。
+# 2-3. データを展開 qza形式のファイル(taxonomyデータ,ASVテーブル,ASV配列)をunzipしてテキストファイル取り出す。
 #   2-3.1 taxonomyデータを抽出
 #   2-3.2 taxonomyデータとASVテーブルを結合する。 
 #   2-3.3 taxonomyデータとASV配列を結合する。
-# 2-4. ASVの系統樹を作成
+# 2-4. データを結合
+# 2-5. ASVの系統樹を作成
 ### 
 
 # 2-1. qiime2起動
@@ -216,7 +217,7 @@ function mtax () {
 function mtseq () {
     TTAX=$1; TSEQ=$2; 
     id_tax=(`grep -v "^Feature" ${TTAX} | awk -F"\t" '{print $1}'`)
-    id_seq=(`grep "^>" dna-sequences.fasta | sed 's/^>//'`)
+    id_seq=(`grep "^>" ${TSEQ} | sed 's/^>//'`)
     un=(`echo ${id_tax[*]} ${id_seq[*]} | tr ' ' '\n' | sort | uniq -c | awk '{print $1 }' | uniq`)
 
     if [[ ${#un[@]} == 1 && ${un[@]} == 2 ]]; then
@@ -230,27 +231,13 @@ function mtseq () {
     fi
 
 }
-## 2-2.3 関数定義, taxonomyデータから最も下位のタクソンを抽出, で記述が異なる
-# function id_tax () {
-#     # $9:s, $8:g, $7:f, $6:o, $5:c, $4:p, $3:k/d
-#     cat $1 \
-#     | awk -F"\t" '{if($3~/k__/){sub("k__","", $3); r="gg"}else if($3~/d__/){sub("d__","", $3);r="slv"} else if($3~/Unassigned/){r="unc"}; \
-#     sub("s__", "", $9); sub("g__","", $8); sub("f__","",$7); sub("o__","",$6); sub("c__","",$5); sub("p__","",$4); \
-#     if ($9 !="") print $1 "\t" "s__"$8"_"$9 ; \
-#     else if ($9=="" && $8 !="") print $1 "\t" "g__"$8 ; \
-#     else if ($9=="" && $8=="" && $7 !="") print $1 "\t" "f__" $7 ; \
-#     else if ($9=="" && $8=="" && $7 =="" && $6 !="") print $1 "\t" "o__" $6 ; \
-#     else if ($9=="" && $8=="" && $7 =="" && $6 =="" && $5 !="" ) print $1 "\t" "c__" $5 ; \
-#     else if ($9=="" && $8=="" && $7 =="" && $6 =="" && $5 =="" && $4 !="" ) print $1 "\t" "p__" $4 ; \
-#     else if ($9=="" && $8=="" && $7 =="" && $6 =="" && $5 =="" && $4 =="" && $3 !="" && r=="gg" ) print $1 "\t" "k__" $3 ; \
-#     else if ($9=="" && $8=="" && $7 =="" && $6 =="" && $5 =="" && $4 =="" && $3 !="" && r=="slv" ) print $1 "\t" "d__" $3 ; \
-#     else if ($9=="" && $8=="" && $7 =="" && $6 =="" && $5 =="" && $4 =="" && $3 !="" && r=="unc" ) print $1 "\t"$3 ; }'
-# }
+## 2-2.3 関数定義, taxonomyデータから最も下位のタクソンを抽出, リファレンスで記述が異なる
 function id_tax () {
-    paste <(cut -f1 ${1}| awk 'NR>1' ) <(cut -f2 ${1} | awk -F"; " 'NR>1{print $NF}')
+    paste <(cut -f1 ${1}| awk 'NR>1' ) \
+    <(cut -f2 ${1} | awk -F"; " 'BEGIN{i=NF}NR>1{for (i = NF; i > 0; i-- ){if($i!~/__$/){print $i;break}else if($i~/__$/){} }}' )
 }
 
-## 2-2.4 関数定義, fastaファイルから指定idを除外
+## 2-2.4 関数定義, fastaファイルから指定idの配列除外
 function faGetrest (){
   id=(${1}); fa=$2; rest=$3
   cat ${fa} \
@@ -259,73 +246,76 @@ function faGetrest (){
   | awk 'NR==FNR{a[$1]=$1}NR!=FNR{if ($1 in a) ; else print ">"$1"\n"$2 > "'${rest}'"}' \
   <(echo ${id[@]} | tr ' ' '\n' ) -
 }
-# 2-3. データを結合
-## taxonomyファイルの展開
-unzip -q ${TAX} -d tmp
-if  ls tmp/*/data/taxonomy.tsv >/dev/null 2>&1 ; then 
-    mv tmp/*/data/taxonomy.tsv ./
-    TAXTSV='taxonomy.tsv'
+# 2-3. qza ファイルを一時ディレクトリに展開
+## 2-3.1 taxonomyファイルの展開 ${TAXTSV}
+    temp_tax=$(mktemp -d)
+    trap 'rm -rf $temp_tax' EXIT
+    unzip -q ${TAX} -d $temp_tax
+    TAXTSV="${temp_tax}/*/data/taxonomy.tsv"
+
+    if [[ ! -f $(echo $TAXTSV) ]] ; then 
+        echo -e "[ERROR] The specified argument ${TAX} may not be a taxonomy."
+        exit 1 
+    fi
+
+## 2-3.2 ASVテーブルを展開 ${BIOME}
+if [[ -n "${TAB}" ]]; then
+    temp_tab=$(mktemp -d)
+    trap 'rm -rf ${temp_tab}' EXIT
+    unzip -q ${TAB} -d ${temp_tab}
+    BIOME="${temp_tab}/*/data/feature-table.biom" 
+    if [[ ! -f $(echo ${BIOME}) ]] ; then
+        echo -e "[ERROR] ${TAB} may not be a feature table. "
+        exit 1
+    fi
+fi
+
+## 2-3.3 ASV配列の展開 ${ASVFA}
+if [[ -n "${SEQ}" ]]; then
+    temp_seq=$(mktemp -d)
+    trap 'rm -rf ${temp_seq}' EXIT
+    unzip -q ${SEQ} -d ${temp_seq} 
+    ASVFA="${temp_seq}/*/data/dna-sequences.fasta"
+
+    if [[ ! -f $(echo ${ASVFA}) ]] ; then
+        echo -e "[ERROR] ${SEQ} may not be a ASV fasta. "
+        exit 1
+    fi
+
+fi
+
+# 2-4. データを結合
+## taxonomyデータとの結合 feature-table & ASV-fasta
+if [[ -f $(echo ${ASVFA}) && -f $(echo ${BIOME}) ]] ; then
+    biom convert -i ${BIOME} -o ./feature-table.tsv --to-tsv 
+    mtax ${TAXTSV} feature-table.tsv > ${OTT}
+    mtseq ${TAXTSV} ${ASVFA} > ${OTF} 
+
+elif [[ -f $(echo ${BIOME}) ]]; then 
+    biom convert -i ${BIOME} -o ./feature-table.tsv --to-tsv 
+    mtax ${TAXTSV} feature-table.tsv > ${OTT}
+
+elif [[ -f $(echo ${ASVFA}) ]]; then
+    mtseq ${TAXTSV} ${ASVFA} > ${OTF}
 else 
-  echo -e "[ERROR] The specified argument ${TAX} may not be a taxonomy."
-  exit 1
+    echo -e "[ERROR] The ${SEQ} may not be an ASV sequence. "
+    exit 1
 fi
 
-## ASVテーブルかつまたはASV配列の展開、及びとtaxonomyとの結合
-if [[ -n "${TAB}" && -n "${SEQ}" ]]; then
-    unzip -q ${TAB} -d tmp1 ; unzip -q ${SEQ} -d tmp2 
-    BIOME='tmp1/*/data/feature-table.biom' ; ASVFA='tmp2/*/data/dna-sequences.fasta'
-
-    if [[ -f $(echo ${ASVFA}) && -f $(echo ${BIOME}) ]] ; then
-        biom convert -i ${BIOME} -o ./feature-table.tsv --to-tsv ; rm -r ./tmp1
-        mtax taxonomy.tsv feature-table.tsv > ${OTT}
-
-        mv ${ASVFA} ./ ; rm -r ./tmp2
-        mtseq taxonomy.tsv dna-sequences.fasta > ${OTF} 
-
-    else
-        echo -e "[ERROR] ${SEQ} may not be an ASV sequence, and/or ${TAB} may not be a feature table. "
-        exit 1
-    fi
-
-elif [[ -n "${TAB}" && -z "${SEQ}" ]]; then
-    unzip -q ${TAB} -d tmp
-    BIOME='tmp/*/data/feature-table.biom'
-    if [[ -f $(echo ${BIOME}) ]]; then 
-        biom convert -i ${BIOME} -o ./feature-table.tsv --to-tsv ; rm -r ./tmp
-        mtax taxonomy.tsv feature-table.tsv> ${OTT}
-    else 
-        echo -e "[ERROR] The  ${TAB} may not be a feature table. "
-        exit 1
-    fi
-
-elif [[ -z "${TAB}" && -n "${SEQ}" ]]; then
-    unzip -q ${SEQ} -d tmp
-    ASVFA='tmp/*/data/dna-sequences.fasta'
-    if [[ -f $(echo ${ASVFA}) ]]; then 
-        mv ${ASVFA} ./ ; rm -r ./tmp
-        mtseq taxonomy.tsv dna-sequences.fasta > ${OTF}
-    else 
-        echo -e "[ERROR] The ${SEQ} may not be an ASV sequence. "
-        exit 1
-    fi
-
-else
-    echo -e "[ERROR] "
-fi
 
 # 2-4. ASVの系統樹を作成
 if [[ -f ${SEQ} ]] ; then
     ## 4-1. ASV配列からUnassignedを除去, 除去したfastaをインポート 
     if [[ $UAT = "TRUE" ]]; then
-        unid=(`cat taxonomy.tsv | awk -F"\t" '$2~/Unassigned/{print $1}'`)
+        unid=(`cat ${TAXTSV} | awk -F"\t" '$2~/Unassigned/{print $1}'`)
         if [[ "${#unid[@]}" > 0 ]]; then 
             echo -e "# Remove unassigned ASV"
             echo -e "${unid[@]}" | tr ' ' '\n'
-            faGetrest "${unid[*]}" dna-sequences.fasta dna-sequences_ast.fasta
+            faGetrest "${unid[*]}" ${ASVFA} dna-sequences_ast.fasta
             qiime tools import --input-path dna-sequences_ast.fasta --output-path repset_tmp.qza --type 'FeatureData[Sequence]'
         else 
             echo "# Unassigne ASV does not exist."
-            qiime tools import --input-path dna-sequences.fasta --output-path repset_tmp.qza --type 'FeatureData[Sequence]'
+            qiime tools import --input-path ${ASVFA} --output-path repset_tmp.qza --type 'FeatureData[Sequence]'
         fi
     else
         echo  
@@ -362,7 +352,7 @@ fi
 
 # 2-5. 一時ファイルの移動, 削除
 mv aligned-repset.qza masked-aligned-repset.qza unrooted-tree.qza rooted-tree.qza ${OUTRE}
-if [[ -f feature-table.tsv ]];then rm feature-table.tsv; fi
-if [[ -f dna-sequences.fasta ]];then rm dna-sequences.fasta; fi
-if [[ -f taxonomy.tsv ]];then rm taxonomy.tsv ; fi
+#if [[ -f feature-table.tsv ]];then rm feature-table.tsv; fi
+#if [[ -f dna-sequences.fasta ]];then rm dna-sequences.fasta; fi
+#if [[ -f taxonomy.tsv ]];then rm taxonomy.tsv ; fi
 if [[ -f repset_tmp.qza ]];then rm repset_tmp.qza; fi
