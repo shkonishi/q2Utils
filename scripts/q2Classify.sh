@@ -127,9 +127,8 @@ if [[ $# = 2 && -f "$1" && -f "$2" ]]; then
     ASV=$1
     TAB=$2
 else
-    echo "### Two arguments are required: ASV and ASV table. "
-    echo "### Specify the ASV as the first argument and the ASV table file as the second argument, respectively."
-    echo "### Both file formats must be in qza format."
+    echo "### [ERROR] Two qza files are required as arguments. " 
+    echo "### [ERROR] The first is the ASV and the second is the feature table. " 
     print_usg
     exit 1
 fi
@@ -138,7 +137,6 @@ fi
 ## 1-5-1. リファレンスファイル(classifier)を指定 fullpathの場合/Q2DBがある場合
 if [[ -n "${Q2DB}" && -n "${VALUE_a}" && -z "${VALUE_f}" && -z "${VALUE_x}" ]] ; then
     CLF=$(dirname $Q2DB)/$(basename $Q2DB)/${VALUE_a}
-    echo -e "# ${CLF} was designated as the classifier." 
 elif [[ -z "${Q2DB}" && -n "${VALUE_a}" && -z "${VALUE_f}" && -z "${VALUE_x}" ]] ; then
     CLF="${VALUE_a}"
     echo -e "# ${CLF} was designated as the classifier."
@@ -164,7 +162,7 @@ if [[ -e ${CLF} && ! -e ${REFA} && ! -e ${RETAX} ]] ; then
 elif [[ ! -e ${CLF} && -e ${REFA} && -e ${RETAX} ]] ; then
     echo "# ${REFA} & ${RETAX} were exists."
 else 
-    echo -e "### [ERROR] Reference data not found. "
+    echo -e "### [ERROR] The reference file not found. "
     echo -e "### Please specify classifier (qza format) or sequence/phylogenetic data (qza format) as reference data."
     echo -e "### The environment variable Q2DB can be set to specify the file name only."
     echo -e "### [e.g.]  export Q2DB=/root/ubuntu/db/qiime2 "
@@ -211,8 +209,11 @@ source ${CENV}
 if echo ${CENV} | grep -q "anaconda" ; then source activate ${QENV}; else conda activate ${QENV}; fi
 
 # 2-2. qiime feature-lassifierを実行
+## taxonomy.qza が存在していれば、exit
+if [[ -f ${OTAX} ]] ; then echo "[ERROR] The ${OTAX} was aleady exist."; exit 1; fi
+
 if [[ -f ${CLF} && ! -f ${REFA} && ! -f ${RETAX} ]]; then
-    echo "# Execute qiime feature-classifier classify-sklearn"
+    echo "### Execute qiime feature-classifier classify-sklearn"
     qiime feature-classifier classify-sklearn \
     --i-classifier ${CLF} \
     --i-reads ${ASV} \
@@ -221,14 +222,13 @@ if [[ -f ${CLF} && ! -f ${REFA} && ! -f ${RETAX} ]]; then
     --p-n-jobs ${NT}
 
 elif [[ -f ${REFA} && -f ${RETAX} && ! -f ${CLF} ]]; then
-    echo "# Execute qiime feature-classifier classify-consensus-blast"
+    echo "### Execute qiime feature-classifier classify-consensus-blast"
     # blast
     qiime feature-classifier classify-consensus-blast \
     --i-query ${ASV} \
     --i-reference-reads ${REFA} \
     --i-reference-taxonomy ${RETAX} \
-    --o-classification ${OTAX} \
-    --p-n-jobs ${NT}
+    --o-classification ${OTAX} 
 
 else 
     echo "[ERROR] 参照データがみつかりません。参照データとして分類機もしくは配列と系統データを指定します。"
@@ -244,14 +244,14 @@ if [[ ! -f ${OTAX} ]] ; then echo "[ERROR] The ${OTAX} was not output."; exit 1;
 ## 出力ディレクトリを確認
 OUTDZ='exported_qzv'
 if [[ -d "${OUTDZ}" ]]; then
-    echo "[WARNING] ${OUTDZ} was already exists. The output files may be overwritten."
+    echo "[WARNING] ${OUTDZ} was already exists. The output files may be overwritten." >&2
 else 
     mkdir "${OUTDZ}"
 fi
 
 OUTD='exported_txt'; 
 if [[ -d "${OUTD}" ]];then
-    echo "[WARNING] ${OUTD} already exists. The output files may be overwritten."
+    echo "[WARNING] ${OUTD} already exists. The output files may be overwritten." >&2
 else 
     mkdir "${OUTD}"
 fi
@@ -276,7 +276,7 @@ if [[ -f ${TAB} && -f ${OTAX} && -f ${META} ]]; then
     --o-visualization ${OUTDZ}/${OBP}
 
 elif [[ -f ${TAB} && -f ${OTAX} && ! -f ${META} ]] ; then
-    echo '[WARNINGS] A meta-data file was not specified, bar-plot was created without meta-data .'
+    echo '[WARNING] A meta-data file was not specified, bar-plot was created without meta-data .' >&2
     qiime taxa barplot \
     --i-table ${TAB} \
     --i-taxonomy ${OTAX} \

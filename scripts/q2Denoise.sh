@@ -87,7 +87,7 @@ shift `expr $OPTIND - 1`
 # 1-2. conda環境変数ファイルの存在確認
 if [[ -z "$VALUE_e" ]]; then CENV="${HOME}/miniconda3/etc/profile.d/conda.sh"; else CENV=${VALUE_e}; fi
 if [[ ! -f "${CENV}" ]]; then
- echo "[ERROR] The file for the conda environment variable cannot be found. ${CENV}"
+ echo "[ERROR] The file for the conda environment variable cannot be found. ${CENV}" >&2
  print_usg
  exit 1
 fi
@@ -97,7 +97,7 @@ if [[ -z "$VALUE_q" ]]; then QENV="qiime2-2022.2"; else QENV=${VALUE_q}; fi
 if conda info --envs | awk '!/^#/{print $1}'| grep -q "^${QENV}$" ; then
     :
 else 
-    echo "[ERROR] There is no ${QENV} environment."
+    echo "[ERROR] There is no ${QENV} environment." >&2
     conda info --envs
     print_usg
     exit 1
@@ -113,12 +113,12 @@ if [[ "$#" = 1 && -f "$1" ]]; then
     elif [[ "${TMNF}" != 2 && "${TMNF}" != 3 ]] && [[ "${CMNF}" == 3 ]] ; then
         MFMT="csv"
     else 
-        echo "[ERROR] The input file must be csv or tsv ."
+        echo "[ERROR] The input file must be csv or tsv ." >&2
         exit 1
     fi
 
 else 
-    echo "[ERROR] The manifest file, ${1}, not found"
+    echo "[ERROR] The manifest file, ${1}, not found" >&2
     print_usg
     exit 1
 fi
@@ -169,6 +169,7 @@ The position to be truncated at Read1:                      [ ${TRUNKF} ]
 The position to be truncated at Read2:                      [ ${TRUNKR} ]
 Reads shorter than this value will be discarded(single).    [ ${TRUNKL} ]
 Number of threads :                                         [ ${NT} ] 
+
 EOS
 
 
@@ -258,7 +259,7 @@ fi
 ## 出力ディレクトリを確認
 OUTD='exported_txt'
 if [[ -d "${OUTD}" ]];then
-    echo "[WARNING] ${OUTD} already exists. The output files may be overwritten." 
+    echo "[WARNING] ${OUTD} already exists. The output files may be overwritten." >&2
 else 
     mkdir ${OUTD}
 fi
@@ -280,7 +281,7 @@ biom convert -i ./${OUTD}/feature-table.biom -o ./${OUTD}/feature-table.tsv --to
 ## 出力ディレクトリを確認
 OUTDZ='exported_qzv'
 if [[ -d "${OUTDZ}" ]]; then
-    echo "[WARNING] ${OUTDZ} already exists. The output files may be overwritten."
+    echo "[WARNING] ${OUTDZ} already exists. The output files may be overwritten." >&2
 else 
     mkdir ${OUTDZ}
 fi

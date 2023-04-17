@@ -87,8 +87,11 @@ shift `expr $OPTIND - 1`
 
 # 1-2. conda環境変数ファイルの存在確認
 if [[ -z "${VALUE_e}" ]]; then CENV="${HOME}/miniconda3/etc/profile.d/conda.sh"; else CENV=${VALUE_e}; fi
-if [[ -f "${CENV}" ]]; then : ; else echo "[ERROR] The file for the conda environment variable cannot be found. ${CENV}"; exit 1; fi
-
+if [[ ! -f "${CENV}" ]]; then
+ echo "[ERROR] The file for the conda environment variable cannot be found. ${CENV}"
+ print_usg
+ exit 1
+fi
 # 1-3. qiime2環境の存在確認
 if [[ -z "${VALUE_q}" ]]; then QENV="qiime2-2022.8"; else QENV=${VALUE_q}; fi
 if conda info --envs | awk '!/^#/{print $1}'| grep -q "^${QENV}$" ; then
@@ -96,6 +99,7 @@ if conda info --envs | awk '!/^#/{print $1}'| grep -q "^${QENV}$" ; then
 else 
     echo "[ERROR] The conda environment ${QENV} was not found."
     conda info --envs
+    print_usg
     exit 1
 fi
 
@@ -325,7 +329,7 @@ if [[ -f ${SEQ} ]] ; then
     ## 出力ディレクトリを確認
     OUTRE='exported_tree'
     if [[ -d "${OUTRE}" ]]; then
-        echo "[WARNING] ${OUTRE} was already exists. The output files may be overwritten."
+        echo "[WARNING] ${OUTRE} was already exists. The output files may be overwritten." >&2
     else 
         mkdir "${OUTRE}"
     fi
