@@ -43,9 +43,9 @@ EOS
 function print_usg() {
 cat << EOS
 使用例: 
-    $CMDNAME -t table.qza taxonomy.qza      # ASVテーブルとtaxonomyの結合      
-    $CMDNAME -s repset.qza taxonomy.qza     # ASV配列とtaxonomyの結合 & ASV-tree構築
-    $CMDNAME -t table.qza -s repset.qza taxonomy.qza # 上記2つを実行
+    $CMDNAME -t table.qza taxonomy.qza                  # ASVテーブルとtaxonomyの結合      
+    $CMDNAME -s repset.qza taxonomy.qza                 # ASV配列とtaxonomyの結合 & ASV-tree構築
+    $CMDNAME -t table.qza -s repset.qza taxonomy.qza    # 上記2つを実行
     $CMDNAME -t table.qza -s repset.qza -u taxonomy.qza # ASV-treeからUnassigned taxon除去
 
 EOS
@@ -169,10 +169,10 @@ EOS
 ### MAIN ###
 # 2-1. qiime2起動
 # 2-2. 関数定義
-# 2-3. データを展開 qza形式のファイル(taxonomyデータ,ASVテーブル,ASV配列)をunzipしてテキストファイル取り出す。
-#   2-3.1 taxonomyデータを抽出
-#   2-3.2 taxonomyデータとASVテーブルを結合する。 
-#   2-3.3 taxonomyデータとASV配列を結合する。
+# 2-3. qzaファイルを展開, qzaファイル(taxonomyデータ,ASVテーブル,ASV配列)をunzipしてテキストファイル抽出
+#   2-3.1 taxonomyファイルの展開 ${TAXTSV} 
+#   2-3.2 ASVテーブルを展開 ${BIOME}  
+#   2-3.3 ASV配列の展開 ${ASVFA}
 # 2-4. データを結合
 # 2-5. ASVの系統樹を作成
 ### 
@@ -182,7 +182,7 @@ source ${CENV}
 if echo ${CENV} | grep -q "anaconda" ; then source activate ${QENV}; else conda activate ${QENV}; fi
 
 # 2-2. 関数定義 
-## 2-2.1 関数定義, ASVテーブルとtaxonomyデータとASV配列を結合する。 
+## 2-2.1 関数定義, ASVテーブルとtaxonomyデータとASV配列を結合
 function mtax () {
     TTAX=$1; TTAB=$2 
     # カウントデータからヘッダ行抽出
@@ -289,17 +289,19 @@ if [[ -n "${SEQ}" ]]; then
 fi
 
 # 2-4. データを結合
-## taxonomyデータとの結合 feature-table & ASV-fasta
 if [[ -f $(echo ${ASVFA}) && -f $(echo ${BIOME}) ]] ; then
+    ## taxonomyデータとの結合 feature-table & ASV-fasta
     biom convert -i ${BIOME} -o ./feature-table.tsv --to-tsv 
     mtax ${TAXTSV} feature-table.tsv > ${OTT}
     mtseq ${TAXTSV} ${ASVFA} > ${OTF} 
 
-elif [[ -f $(echo ${BIOME}) ]]; then 
+elif [[ -f $(echo ${BIOME}) ]]; then
+    ## taxonomyデータとfeature-tableを結合
     biom convert -i ${BIOME} -o ./feature-table.tsv --to-tsv 
     mtax ${TAXTSV} feature-table.tsv > ${OTT}
 
 elif [[ -f $(echo ${ASVFA}) ]]; then
+    ## taxonomyデータとASV配列を結合
     mtseq ${TAXTSV} ${ASVFA} > ${OTF}
 else 
     echo -e "[ERROR] The ${SEQ} may not be an ASV sequence. "
@@ -356,7 +358,5 @@ fi
 
 # 2-5. 一時ファイルの移動, 削除
 mv aligned-repset.qza masked-aligned-repset.qza unrooted-tree.qza rooted-tree.qza ${OUTRE}
-#if [[ -f feature-table.tsv ]];then rm feature-table.tsv; fi
-#if [[ -f dna-sequences.fasta ]];then rm dna-sequences.fasta; fi
-#if [[ -f taxonomy.tsv ]];then rm taxonomy.tsv ; fi
+if [[ -f feature-table.tsv ]];then rm feature-table.tsv; fi
 if [[ -f repset_tmp.qza ]];then rm repset_tmp.qza; fi
