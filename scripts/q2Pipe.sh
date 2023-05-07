@@ -1,9 +1,24 @@
 #!/bin/bash
-VERSION=0.0.230302
+VERSION=0.1.230503
 AUTHOR=SHOGO_KONISHI
 CMDNAME=`basename $0`
 
-# ヘルプの表示
+
+### Contents  ###
+# 1. ドキュメント
+#  1.1. ヘルプの表示 
+#  1.2. 使用例の表示
+# 2. オプション引数の処理
+# 3. コマンドライン引数の処理
+# 4. プログラムに渡す引数の一覧 
+# 5. qiime2パイプライン実行 
+#  5-1. マニフエストファイル作成(q2Manif.sh) & デノイジング(q2Denoise.sh)
+#  5-2. 系統推定実行(q2Classify.sh)
+#  5-3. 系統組成表作成, 代表配列系統樹作成(q2Merge.sh) 
+###
+
+# 1. ドキュメント
+#  1.1. ヘルプの表示
 function print_doc() {
 cat << EOS
 使用法:
@@ -30,7 +45,7 @@ cat << EOS
 
 EOS
 }
-
+#  1.2. 使用例の表示
 function print_usg () {
 cat << EOS
 使用例: 
@@ -49,17 +64,8 @@ cat << EOS
 EOS
 }
 
-
-### 引数チェック ###
-# 1-1. オプション引数の入力処理 
-# 1-2. conda環境変数ファイルの存在確認
-# 1-3. qiime2環境の存在確認
-# 1-4. コマンドライン引数の判定 
-# 1-5. オプション引数の判定
-# 1-6. プログラムに渡す引数の一覧
-###
-
-# 1-1. オプション引数の入力処理
+# 2. オプション引数の処理
+#  2.1. オプション引数の入力
 while getopts e:q:spF:R:a:f:x:m:h OPT
 do
   case $OPT in
@@ -83,16 +89,16 @@ do
 done
 shift `expr $OPTIND - 1`
 
-
-# 1-2. conda環境変数ファイルの存在確認
+#  2.2. オプション引数の判定およびデフォルト値の指定
+## conda環境変数ファイルの存在確認
 if [[ -z "$VALUE_e" ]]; then CENV="${HOME}/miniconda3/etc/profile.d/conda.sh"; else CENV=${VALUE_e}; fi
-if [[ ! -f "${CENV}" ]]; then
+if [[ ! -e "${CENV}" ]]; then
  echo "[ERROR] The file for the conda environment variable cannot be found. ${CENV}"
  print_usg
  exit 1
 fi
 
-# 1-3. qiime2環境の存在確認
+## qiime2環境の存在確認
 if [[ -z "$VALUE_q" ]]; then QENV="qiime2-2022.2"; else QENV=${VALUE_q}; fi
 if conda info --envs | awk '!/^#/{print $1}'| grep -q "^${QENV}$" ; then
     :
@@ -103,34 +109,7 @@ else
     exit 1
 fi
 
-# 1-4. コマンドライン引数の判定 
-if [[ $# = 1 && -d $1 ]]; then
-    FQD=`basename $1`
-    CPFQD=$(cd $(dirname $1) && pwd)/${FQD}
-else
-    echo "[ERROR] Either the directory is not specified or the directory cannot be found." >&2
-    print_usg
-    exit 1
-fi
-
-# 1-5. オプション引数の判定
-if [[ "${FLG_s}" == "TRUE" && "${FLG_p}" != "TRUE" ]]; then 
-    DRCTN="single"
-elif [[ "${FLG_s}" != "TRUE" && "${FLG_p}" == "TRUE" ]]; then
-    DRCTN="paired"
-    if [[ -z "${VALUE_F}" || -z "${VALUE_R}" ]]; then
-        TRUNKF=270; TRUNKR=200
-    elif [[ -n "${VALUE_F}" && -n "${VALUE_R}" ]]; then 
-        TRUNKF=${VALUE_F}; TRUNKR=${VALUE_R}
-    else 
-        echo -e "[ERROR]"
-        exit 1
-    fi
-else 
-    echo "[ERROR] The optin flag [-s|-p] must be set."
-    exit 1
-fi
-
+## リファレンスファイルの判定
 if [[ -n "${Q2DB}" && -n "${VALUE_a}" && -z "${VALUE_f}" && -z "${VALUE_x}" ]] ; then
     CLF=$(dirname $Q2DB)/$(basename $Q2DB)/${VALUE_a}
     echo -e "# ${CLF} was designated as the classifier." 
@@ -152,11 +131,37 @@ else
     echo -e "### It can be specified only by file name by setting the Q2DB environment variable."
     exit 1
 fi
+
+## その他オプション引数の判定
+if [[ "${FLG_s}" == "TRUE" && "${FLG_p}" != "TRUE" ]]; then 
+    DRCTN="single"
+elif [[ "${FLG_s}" != "TRUE" && "${FLG_p}" == "TRUE" ]]; then
+    DRCTN="paired"
+    if [[ -z "${VALUE_F}" || -z "${VALUE_R}" ]]; then
+        TRUNKF=270; TRUNKR=200
+    elif [[ -n "${VALUE_F}" && -n "${VALUE_R}" ]]; then 
+        TRUNKF=${VALUE_F}; TRUNKR=${VALUE_R}
+    else 
+        echo -e "[ERROR]"
+        exit 1
+    fi
+else 
+    echo "[ERROR] The optin flag [-s|-p] as single or paired end,  must be set."
+    exit 1
+fi
 if [[ -n "$VALUE_m" ]]; then META=${VALUE_m}; fi
 
+# 3. コマンドライン引数の処理
+if [[ $# = 1 && -d $1 ]]; then
+    FQD=`basename $1`
+    CPFQD=$(cd $(dirname $1) && pwd)/${FQD}
+else
+    echo "[ERROR] Either the directory is not specified or the directory cannot be found." >&2
+    print_usg
+    exit 1
+fi
 
-
-# 1-6. プログラムに渡す引数の一覧
+# 4. プログラムに渡す引数の一覧
 cat << EOS >&2
 ### Arguments for this pipe-line ###
  conda environmental variables :         [ ${CENV} ]
@@ -171,16 +176,11 @@ cat << EOS >&2
  Refference taxonomy for blast:      [ ${RETAX} ]
  metadata for drawing bar-plot       [ ${META} ]
 
-
 EOS
 
-### MAIN ###
-# 2-1. q2Manif.sh & q2Denoise.sh 実行: マニフェストファイル作成, fastqインポート, dada2によるdenoising
-# 2-2. q2Classify.sh実行: 系統推定
-# 2-3. q2Merge.sh実行: 系統組成表作成, 代表配列系統樹作成, 
-###
 
-# 2-1. Create a manifest file  Date import and Denoising  --p-trunc-len-f
+# 5. qiime2パイプライン実行
+# 5-1. マニフエストファイル作成(q2Manif.sh) & デノイジング(q2Denoise.sh)
 if [[ "${DRCTN}" = "single" ]]; then
   q2Manif.sh -s ${CPFQD}
   q2Denoise.sh -e ${CENV} -q ${QENV} -s manifest.txt
@@ -189,10 +189,9 @@ elif [[ "${DRCTN}" = "paired" ]]; then
   q2Manif.sh -p ${CPFQD}
   q2Denoise.sh -e ${CENV} -q ${QENV} -F ${TRUNKF} -R ${TRUNKR} -p manifest.txt
 fi
+# catch error
 
-# exit if No sample records found in manifest
-
-# 2-2. Classification
+# 5-2. 系統推定実行(q2Classify.sh)
 if [[ -e ${CLF} && ! -e ${REFA} && ! -e ${RETAX} ]] ; then
   echo "# classify-sklearn  was execute."
   if [[ -f ${META} ]] ; then
@@ -213,8 +212,7 @@ else
     echo "[ERROR] Reference data cannot be found. "
     exit 1
 fi
+# catch error
 
-# exit
-
-# 2-3. merge & tree
+# 5-3. 系統組成表作成, 代表配列系統樹作成(q2Merge.sh) 
 q2Merge.sh -e ${CENV} -q ${QENV} -t table.qza -s repset.qza taxonomy.qza
