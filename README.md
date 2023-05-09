@@ -13,26 +13,29 @@ qiime2を用いた解析パイプラインを自動化するためのシェル�
 - conda環境変数ファイルのパスとqiime2のconda環境名を指定することで、異なる解析環境でも実行可
 
 ```sh
+# aruguments
 CENV="${HOME}/miniconda3/etc/profile.d/conda.sh"
 QENV='qiime2-2022.2'
 REF='silva-138-99-nb-classifier.qza'
 
 # paired-end
-bash q2Pipe.sh -e $CNEV -q $QENV -a $REF -F 270 -R 200 -p ./fastq_dir
+q2Pipe.sh -e $CNEV -q $QENV -a $REF -F 270 -R 200 -p ./fastq_dir
 
 # single end
-bash q2Pipe.sh -e $CNEV -q $QENV -a $REF -s ./fastq_dir
+q2Pipe.sh -e $CNEV -q $QENV -a $REF -s ./fastq_dir
 
 ```
 
 - リファレンスデータを分類機ではなく配列と系統データを指定すると、`classify-consensus-blast`を実行  
 
 ```sh
+# arguments
 CENV="${HOME}/miniconda3/etc/profile.d/conda.sh"
 QENV='qiime2-2022.2'
 FST=silva-138-99-seqs.qza 
 TAX=silva-138-99-tax.qza
 
-bash q2Pipe.sh -e $CNEV -q $QENV -a $REF -f $FST -x $TAX -s ./fastq_dir
+# qiime classify-consensus-blast
+q2Pipe.sh -e $CNEV -q $QENV -a $REF -f $FST -x $TAX -s ./fastq_dir
 
 ```

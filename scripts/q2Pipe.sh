@@ -69,8 +69,8 @@ EOS
 while getopts e:q:spF:R:a:f:x:m:h OPT
 do
   case $OPT in
-    "e" ) VALUE_e="$OPTARG";;
-    "q" ) VALUE_q="$OPTARG";;
+    "e" ) CENV="$OPTARG";;
+    "q" ) QENV="$OPTARG";;
     "s" ) FLG_s="TRUE" ;;
     "p" ) FLG_p="TRUE" ;;
     "F" ) VALUE_F="$OPTARG";;
@@ -90,24 +90,16 @@ done
 shift `expr $OPTIND - 1`
 
 #  2.2. オプション引数の判定およびデフォルト値の指定
-## conda環境変数ファイルの存在確認
-if [[ -z "$VALUE_e" ]]; then CENV="${HOME}/miniconda3/etc/profile.d/conda.sh"; else CENV=${VALUE_e}; fi
+if [[ -z "$CENV" ]]; then CENV="${HOME}/miniconda3/etc/profile.d/conda.sh"; fi
+if [[ -z "$QENV" ]]; then QENV="qiime2-2022.2"; fi
+
+## conda環境変数ファイルの存在確認, qiime2環境の存在確認
 if [[ ! -e "${CENV}" ]]; then
  echo "[ERROR] The file for the conda environment variable cannot be found. ${CENV}"
  print_usg
  exit 1
-fi
-
-## qiime2環境の存在確認
-if [[ -z "$VALUE_q" ]]; then QENV="qiime2-2022.2"; else QENV=${VALUE_q}; fi
-if conda info --envs | awk '!/^#/{print $1}'| grep -q "^${QENV}$" ; then
-    :
-else 
-    echo "[ERROR] There is no ${QENV} environment."
-    conda info --envs
-    print_usg
-    exit 1
-fi
+fi 
+conda info --envs | awk '!/^#/{print $1}'| grep -q "^${QENV}$" || { echo "[ERROR] There is no ${QENV} environment." ; conda info --envs ; print_usg; exit 1 ; } 
 
 ## リファレンスファイルの判定
 if [[ -n "${Q2DB}" && -n "${VALUE_a}" && -z "${VALUE_f}" && -z "${VALUE_x}" ]] ; then

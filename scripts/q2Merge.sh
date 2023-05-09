@@ -3,7 +3,25 @@ VERSION=0.1.230403
 AUTHOR=SHOGO_KONISHI
 CMDNAME=`basename $0`
 
-# ヘルプの表示
+### Contents: Merge taxonomy and feature table ###
+# 1. ドキュメント
+#  1.1. ヘルプの表示 
+#  1.2. 使用例の表示
+# 2. オプション引数の処理
+# 3. コマンドライン引数の処理
+# 4. プログラムに渡す引数の一覧 
+# 5. qiime2パイプライン実行 
+#  5.1. qiime2起動
+#  5.2. 関数定義 
+#  5.3. qza ファイルを一時ディレクトリに展開
+#  5.4. データを結合
+#  5.5. ASVの系統樹を作成
+#  5.6. 一時ファイルの移動, 削除
+###
+
+
+# 1. ドキュメント
+#  1.1. ヘルプの表示
 function print_doc() {
 cat << EOS
 使用法:
@@ -11,7 +29,7 @@ cat << EOS
 
 用語の定義およびこのプログラム中で使用されるデフォルトファイル名:
     ASV配列     Denoisingされた配列 [repset.qza]
-    ASVテーブル  検体に含まれるASVのリードカウントテーブル. qiime2的にはfeaturetable [table.qza]
+    ASVテーブル  検体に含まれるASVのリードカウントテーブル. qiime2的にはfeature-table [table.qza]
     taxonomy    ASVの系統推定結果 qiime feature-classifierの出力 [taxonomy.qza]
     系統組成表   taxonomyデータとASVテーブルを結合したもの [taxonomy_cnt.tsv]
 
@@ -39,7 +57,7 @@ cat << EOS
   -h    ヘルプドキュメントの表示
 EOS
 }
-# 使用法の表示
+#  1.2. 使用例の表示
 function print_usg() {
 cat << EOS
 使用例: 
@@ -51,19 +69,8 @@ cat << EOS
 EOS
 }
 
-### 引数チェック ###
-# 1-1. オプションの入力処理
-# 1-2. conda環境変数ファイルの存在確認
-# 1-3. qiime2環境の存在確認
-# 1-4. コマンドライン引数の判定 
-# 1-5. オプション引数の判定
-#   1-5-1. ASV配列及の判定
-#   1-5-2. ASVテーブルの判定
-#   1-5-3. その他オプション引数の判定
-# 1-6. プログラムに渡す引数の一覧
-###
-
-# 1-1. オプションの入力処理 
+# 2. オプション引数の処理
+#  2.1. オプション引数の入力
 while getopts e:q:t:s:o:uh OPT
 do
   case $OPT in
@@ -85,14 +92,15 @@ do
 done
 shift `expr $OPTIND - 1`
 
-# 1-2. conda環境変数ファイルの存在確認
+#  2.2. オプション引数の判定およびデフォルト値の指定
+## conda環境変数ファイルの存在確認
 if [[ -z "${VALUE_e}" ]]; then CENV="${HOME}/miniconda3/etc/profile.d/conda.sh"; else CENV=${VALUE_e}; fi
 if [[ ! -f "${CENV}" ]]; then
  echo "[ERROR] The file for the conda environment variable cannot be found. ${CENV}"
  print_usg
  exit 1
 fi
-# 1-3. qiime2環境の存在確認
+## qiime2環境の存在確認
 if [[ -z "${VALUE_q}" ]]; then QENV="qiime2-2022.8"; else QENV=${VALUE_q}; fi
 if conda info --envs | awk '!/^#/{print $1}'| grep -q "^${QENV}$" ; then
     :
@@ -102,19 +110,7 @@ else
     print_usg
     exit 1
 fi
-
-# 1-4. コマンドライン引数の判定 
-if [[ $# = 1 ]]; then
-    TAX=$1
-    if [[ ! -f ${TAX} || ${TAX##*.} != 'qza' ]] ; then 
-        echo "[ERROR] The taxonomy data ${TAX} does not exist or is not in qza format." ; exit 1
-    fi   
-else
-    echo "[ERROR] 引数としてtaxonomyデータ(qza形式)が必要です。";  print_usg; exit 1
-fi
-
-# 1-5. オプション引数の判定
-## 1-5-1. ASV配列及の判定
+## ASV配列及の判定
 if [[ -z "${VALUE_s}" && -z "${VALUE_t}" ]]; then echo "[ERROR] Either or both options t/s must be selected."; exit 1 ; fi
 if [[ -n "${VALUE_s}" ]]; then
     SEQ=${VALUE_s} # input
@@ -128,7 +124,7 @@ if [[ -n "${VALUE_s}" ]]; then
     fi
 fi
 
-## 1-5-2. ASVテーブルの判定
+## ASV-tableの判定
 if [[ -n "${VALUE_t}" ]]; then
     TAB=${VALUE_t}
     if [[ ! -f ${TAB} || ${TAB##*.} != 'qza' ]] ; then 
@@ -137,18 +133,26 @@ if [[ -n "${VALUE_t}" ]]; then
     fi
 fi
 
-## 1-5-3. その他オプション引数の判定 
+## その他オプション引数の判定 
 if [[ -z "${VALUE_o}" ]]; then OTT="taxonomy_cnt.tsv"; else OTT=${VALUE_o}; fi
 if [[ "${FLG_u}" = "TRUE" ]]; then UAT="TRUE" ; else UAT="FALSE" ; fi
-
-
-if [[ -z "${VALUE_s}" ]] ; then 
+if [[ -z "${VALUE_s}" ]]; then 
     unset OUTRE ; unset OTF ; unset XTRE ; unset UAT 
 elif [[ -z "${VALUE_t}" ]]; then
     unset OTT; 
 fi
 
-# 1-6. プログラムに渡す引数の一覧
+# 3. コマンドライン引数の処理 
+if [[ $# = 1 ]]; then
+    TAX=$1
+    if [[ ! -f ${TAX} || ${TAX##*.} != 'qza' ]] ; then 
+        echo "[ERROR] The taxonomy data ${TAX} does not exist or is not in qza format." ; exit 1
+    fi   
+else
+    echo "[ERROR] 引数としてtaxonomyデータ(qza形式)が必要です。";  print_usg; exit 1
+fi
+
+# 4. プログラムに渡す引数の一覧
 cat << EOS >&2
 ### Merge taxonomy into count data, ASV sequences, and ASV trees ###
 conda environmental values :        [ ${CENV} ]
@@ -166,23 +170,13 @@ Remove Unassigned taxon from tree:  [ ${UAT} ]
 
 EOS
 
-### MAIN ###
-# 2-1. qiime2起動
-# 2-2. 関数定義
-# 2-3. qzaファイルを展開, qzaファイル(taxonomyデータ,ASVテーブル,ASV配列)をunzipしてテキストファイル抽出
-#   2-3.1 taxonomyファイルの展開 ${TAXTSV} 
-#   2-3.2 ASVテーブルを展開 ${BIOME}  
-#   2-3.3 ASV配列の展開 ${ASVFA}
-# 2-4. データを結合
-# 2-5. ASVの系統樹を作成
-### 
-
-# 2-1. qiime2起動
+# 5. qiime2パイプライン実行 
+#  5.1. qiime2起動
 source ${CENV}
 if echo ${CENV} | grep -q "anaconda" ; then source activate ${QENV}; else conda activate ${QENV}; fi
 
-# 2-2. 関数定義 
-## 2-2.1 関数定義, ASVテーブルとtaxonomyデータとASV配列を結合
+# 5.2. 関数定義 
+## 5.2.1 関数定義, ASVテーブルとtaxonomyデータとASV配列を結合
 function mtax () {
     TTAX=$1; TTAB=$2 
     # カウントデータからヘッダ行抽出
@@ -216,8 +210,7 @@ function mtax () {
         echo "[ERROR] The file format of inputs was invalid."
     fi
 }
-
-## 2-2.2 関数定義, taxonomyデータとASV配列を結合
+## 5.2.2 関数定義, taxonomyデータとASV配列を結合
 function mtseq () {
     TTAX=$1; TSEQ=$2; 
     id_tax=(`grep -v "^Feature" ${TTAX} | awk -F"\t" '{print $1}'`)
@@ -235,13 +228,12 @@ function mtseq () {
     fi
 
 }
-## 2-2.3 関数定義, taxonomyデータから最も下位のタクソンを抽出, リファレンスで記述が異なる
+## 5.2.3 関数定義, taxonomyデータから最も下位のタクソンを抽出, リファレンスで記述が異なる
 function id_tax () {
     paste <(cut -f1 ${1}| awk 'NR>1' ) \
     <(cut -f2 ${1} | awk -F"; " 'BEGIN{i=NF}NR>1{for (i = NF; i > 0; i-- ){if($i!~/__$/){print $i;break}else if($i~/__$/){} }}' )
 }
-
-## 2-2.4 関数定義, fastaファイルから指定idの配列除外
+## 5.2.4 関数定義, fastaファイルから指定idの配列除外
 function faGetrest (){
   id=(${1}); fa=$2; rest=$3
   cat ${fa} \
@@ -250,19 +242,19 @@ function faGetrest (){
   | awk 'NR==FNR{a[$1]=$1}NR!=FNR{if ($1 in a) ; else print ">"$1"\n"$2 > "'${rest}'"}' \
   <(echo ${id[@]} | tr ' ' '\n' ) -
 }
-# 2-3. qza ファイルを一時ディレクトリに展開
-## 2-3.1 taxonomyファイルの展開 ${TAXTSV}
-    temp_tax=$(mktemp -d)
-    trap 'rm -rf $temp_tax' EXIT
-    unzip -q ${TAX} -d $temp_tax
-    TAXTSV="${temp_tax}/*/data/taxonomy.tsv"
+# 5.3. qza ファイルを一時ディレクトリに展開
+## 5.3.1 taxonomyファイルの展開 ${TAXTSV}
+temp_tax=$(mktemp -d)
+trap 'rm -rf $temp_tax' EXIT
+unzip -q ${TAX} -d $temp_tax
+TAXTSV="${temp_tax}/*/data/taxonomy.tsv"
 
-    if [[ ! -f $(echo $TAXTSV) ]] ; then 
-        echo -e "[ERROR] The specified argument ${TAX} may not be a taxonomy."
-        exit 1 
-    fi
+if [[ ! -f $(echo $TAXTSV) ]] ; then 
+    echo -e "[ERROR] The specified argument ${TAX} may not be a taxonomy."
+    exit 1 
+fi
 
-## 2-3.2 ASVテーブルを展開 ${BIOME}
+## 5.3.2 ASVテーブルを展開 ${BIOME}
 if [[ -n "${TAB}" ]]; then
     temp_tab=$(mktemp -d)
     trap 'rm -rf ${temp_tab}' EXIT
@@ -273,8 +265,7 @@ if [[ -n "${TAB}" ]]; then
         exit 1
     fi
 fi
-
-## 2-3.3 ASV配列の展開 ${ASVFA}
+## 5.3.3 ASV配列の展開 ${ASVFA}
 if [[ -n "${SEQ}" ]]; then
     temp_seq=$(mktemp -d)
     trap 'rm -rf ${temp_seq}' EXIT
@@ -288,7 +279,7 @@ if [[ -n "${SEQ}" ]]; then
 
 fi
 
-# 2-4. データを結合
+# 5.4. データを結合
 if [[ -f $(echo ${ASVFA}) && -f $(echo ${BIOME}) ]] ; then
     ## taxonomyデータとの結合 feature-table & ASV-fasta
     biom convert -i ${BIOME} -o ./feature-table.tsv --to-tsv 
@@ -308,8 +299,7 @@ else
     exit 1
 fi
 
-
-# 2-4. ASVの系統樹を作成
+# 5.5. ASVの系統樹を作成
 if [[ -f ${SEQ} ]] ; then
     ## 4-1. ASV配列からUnassignedを除去, 除去したfastaをインポート 
     if [[ $UAT = "TRUE" ]]; then
@@ -356,7 +346,7 @@ if [[ -f ${SEQ} ]] ; then
 
 fi
 
-# 2-5. 一時ファイルの移動, 削除
+# 5.6. 一時ファイルの移動, 削除
 mv aligned-repset.qza masked-aligned-repset.qza unrooted-tree.qza rooted-tree.qza ${OUTRE}
 if [[ -f feature-table.tsv ]];then rm feature-table.tsv; fi
 if [[ -f repset_tmp.qza ]];then rm repset_tmp.qza; fi
