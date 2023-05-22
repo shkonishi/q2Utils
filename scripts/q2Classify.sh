@@ -3,7 +3,21 @@ VERSION=0.1.230302
 AUTHOR=SHOGO_KONISHI
 CMDNAME=`basename $0`
 
-# ヘルプの表示
+### <CONTENTS> qiime feature-classifierを用いて系統推定 ###
+# 1. ドキュメント
+# 2. オプション引数の処理
+## 2.1. オプション引数の入力
+## 2.2. オプション引数の判定
+# 3. コマンドライン引数の処理
+# 4. 引数の一覧
+# 5. メイン
+## 5.1. qiime2 起動
+## 5.2. qiime feature-lassifierを実行
+## 5.3. taxonomyテーブルをqzv形式とテキストファイルに変換
+## 5.4. 棒グラフを作成　qiime taxa barplot
+
+# 1. ドキュメント
+## 1.1. ヘルプの表示
 function print_doc() {
 cat << EOS
 使用法:
@@ -36,13 +50,13 @@ cat << EOS
         taxa-barplot.qzv    [系統組成の棒グラフ]
 
 オプション:
-  -e    conda環境変数パス    [default: \${HOME}/miniconda3/etc/profile.d/conda.sh ]
-  -q    qiime2環境名        [default: qiime2-2021.8 ]
-  -a    分類機(qza形式)      [sklearn使用時]
+  -e    conda環境変数パス         [default: \${HOME}/miniconda3/etc/profile.d/conda.sh ]
+  -q    qiime2環境名             [default: qiime2-2021.8 ]
+  -a    分類機(qza形式)           [sklearn使用時]
   -f    リファレンスfasta(qza形式) [blast使用時]
   -x    リファレンスfastaと対応する系統データ(qza形式) [blast使用時]
-  -n    confidence           [default of qiime:0.7 ]
-  -m    メタデータのファイル    [default: map.txt]
+  -n    confidence              [default of qiime:0.7 ]
+  -m    メタデータのファイル        [default: map.txt]
   -o    ASVテーブル(qza形式)   [default: taxonomy.qza]
   -O    ASVテーブル(tsv形式)   [default: taxonomy.tsv]
   -b    棒グラフの出力(qzv形式) [default: taxa-barplot.qzv]
@@ -51,7 +65,7 @@ cat << EOS
 
 EOS
 }
-
+## 1.2. 使用例の表示
 function print_usg() {
 cat << EOS
 使用例:
@@ -68,17 +82,10 @@ cat << EOS
 
 EOS
 }    
+if [[ $# = 0 ]]; then print_doc; print_usg; exit 1; fi
 
-### 引数チェック ###
-# 1-1. オプションの入力処理 
-# 1-2. conda環境変数ファイルの存在確認
-# 1-3. qiime2環境の存在確認
-# 1-4. コマンドライン引数の判定 
-# 1-5. オプション引数の判定
-# 1-6. プログラムに渡す引数の一覧
-###
-
-# 1-1. オプションの入力処理
+# 2. オプション引数の処理
+##  2.1. オプション引数の入力
 while getopts a:f:x:e:q:n:m:o:b:O:h OPT
 do
   case $OPT in
@@ -103,7 +110,8 @@ do
 done
 shift `expr $OPTIND - 1`
 
-# 1-2. conda環境変数ファイルの存在確認
+## 2.2. オプション引数の判定及びデフォルト値
+### 2.2.1. conda環境変数ファイルの存在確認
 if [[ -z "$VALUE_e" ]]; then CENV="${HOME}/miniconda3/etc/profile.d/conda.sh"; else CENV=${VALUE_e}; fi
 if [[ ! -f "${CENV}" ]]; then
  echo "[ERROR] The file for the conda environment variable cannot be found. ${CENV}"
@@ -111,7 +119,7 @@ if [[ ! -f "${CENV}" ]]; then
  exit 1
 fi
 
-# 1-3. qiime2環境の存在確認
+### 2.2.2. qiime2環境の存在確認
 if [[ -z "$VALUE_q" ]]; then QENV="qiime2-2022.2"; else QENV=${VALUE_q}; fi
 if conda info --envs | awk '!/^#/{print $1}'| grep -q "^${QENV}$" ; then
     :
@@ -122,19 +130,7 @@ else
     exit 1
 fi
 
-# 1-4. コマンドライン引数の判定 
-if [[ $# = 2 && -f "$1" && -f "$2" ]]; then
-    ASV=$1
-    TAB=$2
-else
-    echo "### [ERROR] Two qza files are required as arguments. " 
-    echo "### [ERROR] The first is the ASV and the second is the feature table. " 
-    print_usg
-    exit 1
-fi
-
-# 1-5. オプション引数の判定
-## 1-5-1. リファレンスファイル(classifier)を指定 fullpathの場合/Q2DBがある場合
+### 2.2.3. リファレンスファイル(classifier)を指定 fullpathの場合/Q2DBがある場合
 if [[ -n "${Q2DB}" && -n "${VALUE_a}" && -z "${VALUE_f}" && -z "${VALUE_x}" ]] ; then
     CLF=$(dirname $Q2DB)/$(basename $Q2DB)/${VALUE_a}
 elif [[ -z "${Q2DB}" && -n "${VALUE_a}" && -z "${VALUE_f}" && -z "${VALUE_x}" ]] ; then
@@ -156,7 +152,7 @@ else
     exit 1
 fi
 
-## 1-5-2. リファレンスファイル(fasta/taxonomy)存在確認 fullpathの場合/Q2DBがある場合
+### 2.2.4. リファレンスファイル(fasta/taxonomy)存在確認 fullpathの場合/Q2DBがある場合
 if [[ -e ${CLF} && ! -e ${REFA} && ! -e ${RETAX} ]] ; then
     echo "# ${CLF} was exists."
 elif [[ ! -e ${CLF} && -e ${REFA} && -e ${RETAX} ]] ; then
@@ -169,7 +165,7 @@ else
     if [[ -d ${Q2DB} ]] ; then echo -e "### The following files exist in ${Q2DB}."; ls -1 ${Q2DB}| grep "qza$" ; fi
     exit 1
 fi
-## 1-5-3. その他のオプション引数の判定
+### 2.2.5. その他のオプション引数の判定
 if [[ -z "$VALUE_n" ]]; then CONF=0.7; else CONF=${VALUE_n}; fi
 if [[ -z "$VALUE_o" ]]; then OTAX=taxonomy.qza; else OTAX=${VALUE_o}; fi
 if [[ -z "$VALUE_b" ]]; then OBP=taxa-barplot.qzv; else OBP=${VALUE_b}; fi
@@ -177,7 +173,20 @@ if [[ -z "$VALUE_O" ]]; then OTT=taxonomy.tsv; else OTT=${VALUE_O}; fi
 if [[ -n "$VALUE_m" ]]; then META=${VALUE_m}; fi
 if [[ -z "$VALUE_c" ]]; then NT=4; else NT=${VALUE_c};fi
 
-# 1-6. プログラムに渡す引数の一覧
+
+# 3. コマンドライン引数の処理
+if [[ $# = 2 && -f "$1" && -f "$2" ]]; then
+    ASV=$1
+    TAB=$2
+else
+    echo "### [ERROR] Two qza files are required as arguments. " 
+    echo "### [ERROR] The first is the ASV and the second is the feature table. " 
+    print_usg
+    exit 1
+fi
+
+
+# 4. プログラムに渡す引数の一覧
 cat << EOS >&2
 ### Taxonomy classification ###
 conda environmental variables :     [ ${CENV} ]
@@ -197,19 +206,13 @@ output barplot:                     [ ${OBP} ]
 EOS
 
 
-### MAIN ###
-# 2-1. qiime2 起動
-# 2-2. qiime feature-lassifierを実行
-# 2-3. taxonomyテーブルをqzv形式とテキストファイルに変換
-# 2-4. 棒グラフを作成　qiime taxa barplot
-###
-
-# 2-1. qiime2 起動
+# 5. メイン
+## 5.1. qiime2 起動
 source ${CENV}
 if echo ${CENV} | grep -q "anaconda" ; then source activate ${QENV}; else conda activate ${QENV}; fi
 
-# 2-2. qiime feature-lassifierを実行
-## taxonomy.qza が存在していれば、exit
+## 5.2. qiime feature-lassifierを実行
+### taxonomy.qza が存在していれば、exit
 if [[ -f ${OTAX} ]] ; then echo "[ERROR] The ${OTAX} was aleady exist."; exit 1; fi
 
 if [[ -f ${CLF} && ! -f ${REFA} && ! -f ${RETAX} ]]; then
@@ -237,11 +240,11 @@ else
     exit 1
 fi
 
-## taxonomy.qza ができなければexit
+### taxonomy.qza ができなければexit
 if [[ ! -f ${OTAX} ]] ; then echo "[ERROR] The ${OTAX} was not output."; exit 1; fi
 
-# 2-3. taxonomyテーブルをqzv形式とテキストファイルに変換
-## 出力ディレクトリを確認
+## 5.3. taxonomyテーブルをqzv形式とテキストファイルに変換
+### 出力ディレクトリを確認
 OUTDZ='exported_qzv'
 if [[ -d "${OUTDZ}" ]]; then
     echo "[WARNING] ${OUTDZ} was already exists. The output files may be overwritten." >&2
@@ -256,17 +259,17 @@ else
     mkdir "${OUTD}"
 fi
 
-## taxonomyテーブルをtsv形式に変換
+### taxonomyテーブルをtsv形式に変換
 unzip -qq ${OTAX} -d tmp 
 mv tmp/*/data/taxonomy.tsv ./${OUTD}
 rm -r ./tmp
 
-## taxonomyテーブルをqzv形式に変換
+### taxonomyテーブルをqzv形式に変換
 qiime metadata tabulate \
 --m-input-file ${OTAX} \
 --o-visualization ./${OUTDZ}/${OTAX%.*}.qzv
 
-# 2-4. 棒グラフを作成　qiime taxa barplot
+## 5.4. 棒グラフを作成　qiime taxa barplot
 TAB=table.qza; OTAX=taxonomy.qza;
 if [[ -f ${TAB} && -f ${OTAX} && -f ${META} ]]; then
     qiime taxa barplot \
@@ -285,4 +288,3 @@ else
     echo "[ERROR] ${TAB}, ${OTAX} : One of these is missing."
     exit 1
 fi
-

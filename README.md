@@ -39,3 +39,5 @@ TAX=silva-138-99-tax.qza
 q2Pipe.sh -e $CNEV -q $QENV -a $REF -f $FST -x $TAX -s ./fastq_dir
 
 ```
+
+## Results
