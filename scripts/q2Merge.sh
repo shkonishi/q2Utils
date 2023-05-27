@@ -61,10 +61,15 @@ EOS
 function print_usg() {
 cat << EOS
 使用例: 
+    $CMDNAME -h                                         # ドキュメントの表示
     $CMDNAME -t table.qza taxonomy.qza                  # ASVテーブルとtaxonomyの結合      
     $CMDNAME -s repset.qza taxonomy.qza                 # ASV配列とtaxonomyの結合 & ASV-tree構築
     $CMDNAME -t table.qza -s repset.qza taxonomy.qza    # 上記2つを実行
     $CMDNAME -t table.qza -s repset.qza -u taxonomy.qza # ASV-treeからUnassigned taxon除去
+
+    CENV=\${HOME}/miniconda3/etc/profile.d/conda.sh
+    QENV='qiime2-2021.8'
+    $CMDNAME -e \$CENV -q \$QENV  -t table.qza taxonomy.qza
 
 EOS
 }
@@ -74,12 +79,10 @@ EOS
 while getopts e:q:t:s:o:uh OPT
 do
   case $OPT in
-    "e" ) VALUE_e="$OPTARG";;
-    "q" ) VALUE_q="$OPTARG";;
-
-    "t" ) VALUE_t="$OPTARG";;    
-    "s" ) VALUE_s="$OPTARG";;
-    
+    "e" ) CENV="$OPTARG";;
+    "q" ) QENV="$OPTARG";;
+    "t" ) FLG_t="TRUE"; VALUE_t="$OPTARG";;
+    "s" ) FLG_s="TRUE"; VALUE_s="$OPTARG";;
     "o" ) VALUE_o="$OPTARG";;
     "u" ) FLG_u="TRUE" ;;
     "h" ) print_doc ; print_usg ; 
@@ -94,14 +97,14 @@ shift `expr $OPTIND - 1`
 
 #  2.2. オプション引数の判定およびデフォルト値の指定
 ## conda環境変数ファイルの存在確認
-if [[ -z "${VALUE_e}" ]]; then CENV="${HOME}/miniconda3/etc/profile.d/conda.sh"; else CENV=${VALUE_e}; fi
+if [[ -z "${CENV}" ]]; then CENV="${HOME}/miniconda3/etc/profile.d/conda.sh"; fi
 if [[ ! -f "${CENV}" ]]; then
  echo "[ERROR] The file for the conda environment variable cannot be found. ${CENV}"
  print_usg
  exit 1
 fi
 ## qiime2環境の存在確認
-if [[ -z "${VALUE_q}" ]]; then QENV="qiime2-2022.8"; else QENV=${VALUE_q}; fi
+if [[ -z "${QENV}" ]]; then QENV="qiime2-2022.8"; fi
 if conda info --envs | awk '!/^#/{print $1}'| grep -q "^${QENV}$" ; then
     :
 else 
@@ -110,14 +113,13 @@ else
     print_usg
     exit 1
 fi
+
+
 ## ASV配列及の判定
 if [[ -z "${VALUE_s}" && -z "${VALUE_t}" ]]; then echo "[ERROR] Either or both options t/s must be selected."; exit 1 ; fi
 if [[ -n "${VALUE_s}" ]]; then
     SEQ=${VALUE_s} # input
-    OUTRE='exported_tree' # output
     OTF='taxonomy_asv.tsv' # output
-    XTRE='taxtree.nwk' # output
-
     if [[ ! -f ${SEQ} || ${SEQ##*.} != 'qza' ]] ; then 
         echo "[ERROR] The ASV sequence, ${SEQ}, does not exist or is not in qza format." 
         exit 1
@@ -135,12 +137,10 @@ fi
 
 ## その他オプション引数の判定 
 if [[ -z "${VALUE_o}" ]]; then OTT="taxonomy_cnt.tsv"; else OTT=${VALUE_o}; fi
-if [[ "${FLG_u}" = "TRUE" ]]; then UAT="TRUE" ; else UAT="FALSE" ; fi
-if [[ -z "${VALUE_s}" ]]; then 
-    unset OUTRE ; unset OTF ; unset XTRE ; unset UAT 
-elif [[ -z "${VALUE_t}" ]]; then
-    unset OTT; 
-fi
+OUTCNT='count_table'
+if [[ -d "${OUTCNT}" ]]; then echo "[WARNING] ${OUTCNT} was already exists. The output files may be overwritten." >&2 ; fi
+if [[ -z "${VALUE_s}" ]]; then unset OTF ;  elif [[ -z "${VALUE_t}" ]]; then unset OTT; unset OUTCNT; fi
+
 
 # 3. コマンドライン引数の処理 
 if [[ $# = 1 ]]; then
@@ -149,24 +149,22 @@ if [[ $# = 1 ]]; then
         echo "[ERROR] The taxonomy data ${TAX} does not exist or is not in qza format." ; exit 1
     fi   
 else
-    echo "[ERROR] 引数としてtaxonomyデータ(qza形式)が必要です。";  print_usg; exit 1
+    echo "[ERROR] コマンドライン引数としてtaxonomyデータ(qza形式)が必要です。";  print_usg; exit 1
 fi
 
 # 4. プログラムに渡す引数の一覧
 cat << EOS >&2
 ### Merge taxonomy into count data, ASV sequences, and ASV trees ###
-conda environmental values :        [ ${CENV} ]
-qiime2 environment :                [ ${QENV} ]
+conda environmental values :          [ ${CENV} ]
+qiime2 environment :                  [ ${QENV} ]
 
-The input taxonomy file path:       [ ${TAX} ]
-The input ASV table file path:      [ ${TAB} ]
-The input ASV file path:            [ ${SEQ} ]
+Input taxonomy file path:             [ ${TAX} ]
+Input ASV table file path:            [ ${TAB} ]
+Input ASV file path:                  [ ${SEQ} ]
 
-output taxonomy count table:        [ ${OTT} ]
-output taxonomy ASV sequence table: [ ${OTF} ]
-output directory for phylogeny:     [ ${OUTRE} ]
-output taxonomy tree:               [ ${XTRE} ]
-Remove Unassigned taxon from tree:  [ ${UAT} ]
+Output taxonomy count table:          [ ${OTT} ]
+Output taxonomy ASV sequence table:   [ ${OTF} ]
+Output count table summarized by rank [ ${OUTCNT} ]
 
 EOS
 
@@ -299,54 +297,65 @@ else
     exit 1
 fi
 
-# 5.5. ASVの系統樹を作成
-if [[ -f ${SEQ} ]] ; then
-    ## 4-1. ASV配列からUnassignedを除去, 除去したfastaをインポート 
-    if [[ $UAT = "TRUE" ]]; then
-        unid=(`cat ${TAXTSV} | awk -F"\t" '$2~/Unassigned/{print $1}'`)
-        if [[ "${#unid[@]}" > 0 ]]; then 
-            echo -e "# Remove unassigned ASV"
-            echo -e "${unid[@]}" | tr ' ' '\n'
-            faGetrest "${unid[*]}" ${ASVFA} dna-sequences_ast.fasta
-            qiime tools import --input-path dna-sequences_ast.fasta --output-path repset_tmp.qza --type 'FeatureData[Sequence]'
-        else 
-            echo "# Unassigne ASV does not exist."
-            qiime tools import --input-path ${ASVFA} --output-path repset_tmp.qza --type 'FeatureData[Sequence]'
-        fi
-    else
-        echo  
-        cp ${SEQ} repset_tmp.qza
-    fi
-  
-    ## 出力ディレクトリを確認
-    OUTRE='exported_tree'
-    if [[ -d "${OUTRE}" ]]; then
-        echo "[WARNING] ${OUTRE} was already exists. The output files may be overwritten." >&2
-    else 
-        mkdir "${OUTRE}"
-    fi
+# 5.5. 系統組成表をtaxonomic rankごとに分割して要約
+## 系統組成表存在確認
+if [[ ! ${FLG_t} = "TRUE" && ! -f ${OTT} ]]; then 
+  echo -e "[INFO] DONE" ; exit 1 ; 
+fi
+mkdir -p ${OUTCNT}
 
-    ## 4-2. マルチプルアラインメント
-    qiime alignment mafft --i-sequences repset_tmp.qza --o-alignment aligned-repset.qza
-    if [[ ! -f aligned-repset.qza ]] ; then echo "[ERROR] Failed multiple alignment" ; exit 1 ; fi
-    ## 4-3. アライメントのマスク
-    qiime alignment mask --i-alignment aligned-repset.qza --o-masked-alignment masked-aligned-repset.qza
-    ## 4-4. 無根系統樹作成
-    qiime phylogeny fasttree --i-alignment masked-aligned-repset.qza --o-tree unrooted-tree.qza
-    ## 4-5. Midpoint root 
-    qiime phylogeny midpoint-root --i-tree unrooted-tree.qza --o-rooted-tree rooted-tree.qza
-    ## 4-6. Export tree as newick format and modify nodes of the tree.
-    qiime tools export --input-path rooted-tree.qza --output-path ${OUTRE}
-    
-    ## 4-7. Modify nodes of the newick tree.
-    TRE="${OUTRE}/tree.nwk"
-    id_tax ${TAXTSV} \
-    | awk -F"\t" 'NR==FNR{arr[$1]=$2;} \
-    NR!=FNR{for (i in arr){gsub(i, arr[i])};  print; }' - ${TRE} > ${XTRE}
+## taxonomicランク列及びサンプル列を指定　
+ncol=`head -1 ${OTT} | awk -F"\t" '{print NF}'`
+ismp=10
+smps=(`head -1 ${OTT} | cut -f${ismp}-`)
+ntax=(`seq 3 $((${ismp}-1))`)
+nsmp=(`seq ${ismp} ${ncol}`)
 
+## taxonomic rankの判定　silva, greengene, pr2
+rank1=`head -1 ${OTT} | cut -f3`; rank2=`head -1 ${OTT} | cut -f4`
+if [[ $rank1 = 'd' && $rank2 = 'p' ]]; then
+  rank=(domain phylum class order family genus species)
+elif [[ $rank1 = 'k' && $rank2 = 'p' ]]; then
+  rank=(kingdom phylum class order family genus species)
+elif [[ $rank1 = 'd' && ! $rank2 = 'p' ]]; then
+  rank=(domain supergroup phylum class order family genus species)
 fi
 
+## Check args
+# echo -e "[Names of samples]\t"${smps[@]}
+# echo -e "[Names of taxonomic rank]\t"${rank[@]}
+
+## 一時ファイルを格納するディレクトリ
+temp_cnt=$(mktemp -d)
+trap 'rm -rf $temp_cnt' EXIT
+
+## rank毎に行持ちデータフレームを作成し、要約
+for j in ${!ntax[@]}; do
+  ptax=${ntax[$j]}; tax=${rank[$j]}
+  for i in ${!nsmp[@]}; do
+    psmp=${nsmp[$i]}; smp=${smps[$i]}
+    cut -f${ptax},${psmp} ${OTT} | sed -e '1d' \
+    | awk -F"\t" -v smp="${smp}" '{if($1==""){$1="Unassigned"}; arr[$1]+=$2}END{for(x in arr)print x"\t"smp"\t"arr[x]}'
+  done > ${temp_cnt}/${tax}.cnt
+done
+
+## 列持ちデータに変換
+abr=(`for i in ${rank[@]}; do echo ${i:0:1}; done`)
+for k in ${!rank[@]}; do 
+  rnk=${rank[$k]}
+  in=${temp_cnt}/${rnk}.cnt
+  out=${OUTCNT}/count_${abr[$k]}.dat
+
+ for x in ${smps[@]}; do 
+  grep ${x} ${in} | cut -f1,3 | sort -t$'\t' -k1,1 > ${temp_cnt}/${rnk}_${x}.tmp
+ done
+ 
+n_temp=`ls ${temp_cnt}/*.tmp | wc -l` # sample numbers
+slct=(`seq 2 2 $((${n_temp}*2))`) # column numbers of count data only
+echo -e "taxon "${smps[*]} | tr ' ' '\t' > ${out}
+paste ${temp_cnt}/${rnk}*.tmp | cut -f1,`echo ${slct[@]}|tr ' ' ','`  >> ${out}
+
+done
+
 # 5.6. 一時ファイルの移動, 削除
-mv aligned-repset.qza masked-aligned-repset.qza unrooted-tree.qza rooted-tree.qza ${OUTRE}
 if [[ -f feature-table.tsv ]];then rm feature-table.tsv; fi
-if [[ -f repset_tmp.qza ]];then rm repset_tmp.qza; fi

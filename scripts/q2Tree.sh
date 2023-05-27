@@ -42,7 +42,7 @@ cat << EOS
 
     入力ファイルはコマンドライン引数にtaxonomyデータ[taxonomy.qza]を指定し、
     オプション引数としてASV配列[repset.qza]を指定してください。
-    いずれもqza形式で指定します。編集されたnewickツリーは結合された出力ファイルは[taxonomy_cnt.tsv|taxonomy_asv.tsv]として、
+    いずれもqza形式で指定します。編集されたnewickツリーは結合された出力ファイル[taxonomy_cnt.tsv|taxonomy_asv.tsv]として、
     tsv形式で書き出されます。
 
 
@@ -218,7 +218,7 @@ else
   echo -e "[INFO] The taxonomy data unzipped to temporary directory.  ${TAXTSV}"
 fi
 
-## 5.3.2 ASV配列の展開 ${ASVFA}
+## 5.3.2 ASV配列一時ディレクトリに展開 ${ASVFA}
 temp_seq=$(mktemp -d)
 trap 'rm -rf ${temp_seq}' EXIT
 unzip -q ${SEQ} -d ${temp_seq} 

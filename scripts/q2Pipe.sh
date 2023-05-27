@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION=0.1.230503
+VERSION=0.1.230527
 AUTHOR=SHOGO_KONISHI
 CMDNAME=`basename $0`
 
@@ -28,7 +28,8 @@ cat << EOS
   q2Manif.sh    マニフェストファイル作成
   q2Denoise.sh  fastqファイルのインポートとデノイジング
   q2Classify.sh 系統推定 (sk-learn/blast)
-  q2Merge.sh    系統組成表と系統樹作成
+  q2Merge.sh    系統組成表(taxonomyランク毎)を作成
+  q2Tree.sh     系統樹作成
 
 オプション: 
   -e    conda環境変数パス[default: \${HOME}/miniconda3/etc/profile.d/conda.sh ]
@@ -170,7 +171,6 @@ cat << EOS >&2
 
 EOS
 
-
 # 5. qiime2パイプライン実行
 # 5-1. マニフエストファイル作成(q2Manif.sh) & デノイジング(q2Denoise.sh)
 if [[ "${DRCTN}" = "single" ]]; then
@@ -206,5 +206,8 @@ else
 fi
 # catch error
 
-# 5-3. 系統組成表作成, 代表配列系統樹作成(q2Merge.sh) 
+# 5-3. 系統組成表作成(q2Merge.sh) 
 q2Merge.sh -e ${CENV} -q ${QENV} -t table.qza -s repset.qza taxonomy.qza
+
+# 5-4. 代表配列系統樹作成(q2Tree.sh)
+q2Tree.sh -e ${CENV} -q ${QENV} -s repset.qza taxonomy.qza

@@ -5,8 +5,9 @@ qiime2を用いた解析パイプラインを自動化するためのシェル�
 ## Contents
 - q2Manif.sh マニフエストファイル作成
 - q2Denoise.sh デノイジング 
-- q2Classify.sh 系統推定 
-- q2Merge.sh 系統組成表作成, 代表配列系統樹作成 
+- q2Classify.sh 系統推定 (classify-sklearn/classify-consensus-blastを選択可)
+- q2Merge.sh 系統組成表作成
+- q2Tree.sh 代表配列系統樹作成
 - q2Pipe.sh  上記の内容を一括で実行
 
 ## Usage
@@ -41,3 +42,18 @@ q2Pipe.sh -e $CNEV -q $QENV -a $REF -f $FST -x $TAX -s ./fastq_dir
 ```
 
 ## Results
+- taxonomyランク毎に集計したカウントテーブル作成  
+
+|taxon|S1|S2|S3|  
+| :--- | :---: | :---: | ---: |  
+| Unassigned | 6 | 0 | 8 |  
+| p__Actinobacteriota | 29 | 0 | 7 | 
+| p__Deinococcota | 316 | 180 | 54 |
+  
+  
+- ノードラベルをtaxonomic-nameに変換したnewick形式の系統樹に変換 
+
+```text
+((((g__Allorhizobium-Neorhizobium-Pararhizobium-Rhizobium:0.038387286,( ..... ):3.024949999995072e-05)root;
+
+```
