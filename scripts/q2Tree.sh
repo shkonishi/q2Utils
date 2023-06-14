@@ -236,14 +236,17 @@ fi
 ## 5.4.1. ASV配列からUnassignedを除去, 除去したfastaを再びインポート 
 if [[ $UAT = "TRUE" ]]; then
     unid=(`cat ${TAXTSV} | awk -F"\t" '$2~/Unassigned/{print $1}'`)
+    repset_tmp=${temp_seq}/repset_tmp.qza
     if [[ "${#unid[@]}" > 0 ]]; then 
         echo -e "# Remove unassigned ASV"
         echo -e "${unid[@]}" | tr ' ' '\n'
         faGetrest "${unid[*]}" ${ASVFA} dna-sequences_ast.fasta
-        qiime tools import --input-path dna-sequences_ast.fasta --output-path repset_tmp.qza --type 'FeatureData[Sequence]'
+        qiime tools import --input-path dna-sequences_ast.fasta --output-path ${repset_tmp} --type 'FeatureData[Sequence]'
+        echo -e "[INFO] The modified repset created at temporary directory.  ${repset_tmp}"
     else 
         echo "# Unassigne ASV does not exist."
-        qiime tools import --input-path ${ASVFA} --output-path repset_tmp.qza --type 'FeatureData[Sequence]'
+        qiime tools import --input-path ${ASVFA} --output-path ${repset_tmp} --type 'FeatureData[Sequence]'
+        echo -e "[INFO] The modified repset created at temporary directory.  ${repset_tmp}"
     fi
 else
     echo  

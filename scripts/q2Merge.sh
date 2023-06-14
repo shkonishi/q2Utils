@@ -52,6 +52,8 @@ cat << EOS
   -q    qiime2環境名[default: qiime2-2021.8 ]
   -t    ASVテーブル [default: table.qza]
   -s    ASV配列 [default: repset.qza]
+  -n    ASVテーブルとASV配列から、最大読み取り回数がn回以下の配列を削除 [default: 0 ] 
+        qiime feature-table filter-featuresは不使用
   -o    出力ファイル名[default: taxonomy_cnt.tsv]
   -u    系統樹作成の際に、Unassignedタクソンを除外
   -h    ヘルプドキュメントの表示
@@ -76,13 +78,14 @@ EOS
 
 # 2. オプション引数の処理
 #  2.1. オプション引数の入力
-while getopts e:q:t:s:o:uh OPT
+while getopts e:q:t:s:n:o:uh OPT
 do
   case $OPT in
     "e" ) CENV="$OPTARG";;
     "q" ) QENV="$OPTARG";;
     "t" ) FLG_t="TRUE"; VALUE_t="$OPTARG";;
     "s" ) FLG_s="TRUE"; VALUE_s="$OPTARG";;
+    "n" ) VALUE_n="$OPTARG" ;;
     "o" ) VALUE_o="$OPTARG";;
     "u" ) FLG_u="TRUE" ;;
     "h" ) print_doc ; print_usg ; 
@@ -114,9 +117,8 @@ else
     exit 1
 fi
 
-
 ## ASV配列及の判定
-if [[ -z "${VALUE_s}" && -z "${VALUE_t}" ]]; then echo "[ERROR] Either or both options t/s must be selected."; exit 1 ; fi
+if [[ -z "${VALUE_s}" || -z "${VALUE_t}" ]]; then echo "[ERROR] Both options t/s must be selected."; exit 1 ; fi
 if [[ -n "${VALUE_s}" ]]; then
     SEQ=${VALUE_s} # input
     OTF='taxonomy_asv.tsv' # output
@@ -135,7 +137,16 @@ if [[ -n "${VALUE_t}" ]]; then
     fi
 fi
 
-## その他オプション引数の判定 
+## その他オプション引数の判定
+if [[ -z "${VALUE_n}" ]]; then 
+  DP=0
+elif [[ -n "${VALUE_n}" && "${VALUE_n}" =~ ^[0-9]+$  ]]; then
+  DP=${VALUE_n}
+else 
+  echo -e "[ERROR] ${VALUE_n} is not number"
+  exit 1
+fi
+
 if [[ -z "${VALUE_o}" ]]; then OTT="taxonomy_cnt.tsv"; else OTT=${VALUE_o}; fi
 OUTCNT='count_table'
 if [[ -d "${OUTCNT}" ]]; then echo "[WARNING] ${OUTCNT} was already exists. The output files may be overwritten." >&2 ; fi
@@ -162,8 +173,11 @@ Input taxonomy file path:             [ ${TAX} ]
 Input ASV table file path:            [ ${TAB} ]
 Input ASV file path:                  [ ${SEQ} ]
 
+A maximum read count of remove        [ ${DP} ]
 Output taxonomy count table:          [ ${OTT} ]
+Output removed taxonomy table:        [ ${RMT} ]
 Output taxonomy ASV sequence table:   [ ${OTF} ]
+Output removed ASV sequence table:    [ ${RMF} ]
 Output count table summarized by rank [ ${OUTCNT} ]
 
 EOS
@@ -171,10 +185,14 @@ EOS
 # 5. qiime2パイプライン実行 
 #  5.1. qiime2起動
 source ${CENV}
-if echo ${CENV} | grep -q "anaconda" ; then source activate ${QENV}; else conda activate ${QENV}; fi
+if echo ${CENV} | grep -q "anaconda" ; then 
+ source activate ${QENV}
+else 
+ conda activate ${QENV} 
+fi
 
 # 5.2. 関数定義 
-## 5.2.1 関数定義, ASVテーブルとtaxonomyデータとASV配列を結合
+## 5.2.1 関数定義, ASVテーブルとtaxonomyデータとASV配列を結合(ヘッダー行有り)
 function mtax () {
     TTAX=$1; TTAB=$2 
     # カウントデータからヘッダ行抽出
@@ -208,15 +226,25 @@ function mtax () {
         echo "[ERROR] The file format of inputs was invalid."
     fi
 }
-## 5.2.2 関数定義, taxonomyデータとASV配列を結合
+## 5.2.2 関数定義, taxonomyデータとASV配列を結合(ヘッダー行有り)
 function mtseq () {
     TTAX=$1; TSEQ=$2; 
+    # taxonomyデータからrankの配列を取り出す (7列もしくは8列の場合がある)
+    RANK=(`cut -f2 $TTAX | awk -F"; " '{if(NF==8){ \
+    sub("_.*","",$1);sub("_.*","",$2);sub("_.*","",$3);sub("_.*","",$4); \
+    sub("_.*","",$5); sub("_.*","",$6);sub("_.*","",$7); sub("_.*","",$8); \
+    print $1" "$2" "$3" "$4" "$5" "$6" "$7" "$8;} \
+    else if(NF==7){sub("_.*","",$1);sub("_.*","",$2);sub("_.*","",$3);sub("_.*","",$4); \
+    sub("_.*","",$5); sub("_.*","",$6);sub("_.*","",$7); print $1" "$2" "$3" "$4" "$5" "$6" "$7;}}' | head -1`)
+    HDC=(`echo ASV_ID confidence ${RANK[@]} Seq`)
+
+    # idの同一性チェック
     id_tax=(`grep -v "^Feature" ${TTAX} | awk -F"\t" '{print $1}'`)
     id_seq=(`grep "^>" ${TSEQ} | sed 's/^>//'`)
     un=(`echo ${id_tax[*]} ${id_seq[*]} | tr ' ' '\n' | sort | uniq -c | awk '{print $1 }' | uniq`)
 
     if [[ ${#un[@]} == 1 && ${un[@]} == 2 ]]; then
-        #echo ${HDC[@]} | tr ' ' '\t'
+        echo ${HDC[@]} | tr ' ' '\t'
         paste <(cat ${TTAX} | awk -F"\t" 'NR>1{print $1"\t"$3}' | sort -k1,1 ) \
         <(cat ${TTAX} | awk -F"\t" 'NR>1{print $1"\t"$2}' | sort -k1,1 | awk -F"\t" '{print $2}'\
         | awk -F"; " '{print $1"\t"$2"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7}') \
@@ -240,60 +268,136 @@ function faGetrest (){
   | awk 'NR==FNR{a[$1]=$1}NR!=FNR{if ($1 in a) ; else print ">"$1"\n"$2 > "'${rest}'"}' \
   <(echo ${id[@]} | tr ' ' '\n' ) -
 }
+
 # 5.3. qza ファイルを一時ディレクトリに展開
 ## 5.3.1 taxonomyファイルの展開 ${TAXTSV}
-temp_tax=$(mktemp -d)
-trap 'rm -rf $temp_tax' EXIT
-unzip -q ${TAX} -d $temp_tax
-TAXTSV="${temp_tax}/*/data/taxonomy.tsv"
+TEMP_TAX=$(mktemp -d)
+trap 'rm -rf $TEMP_TAX' EXIT
+unzip -q ${TAX} -d $TEMP_TAX
+TAXTSV="${TEMP_TAX}/*/data/taxonomy.tsv"
 
 if [[ ! -f $(echo $TAXTSV) ]] ; then 
     echo -e "[ERROR] The specified argument ${TAX} may not be a taxonomy."
     exit 1 
+else 
+    echo -e "[INFO] The taxonomy data unzipped to temporary directory.  ${TAXTSV}"
 fi
 
 ## 5.3.2 ASVテーブルを展開 ${BIOME}
 if [[ -n "${TAB}" ]]; then
-    temp_tab=$(mktemp -d)
-    trap 'rm -rf ${temp_tab}' EXIT
-    unzip -q ${TAB} -d ${temp_tab}
-    BIOME="${temp_tab}/*/data/feature-table.biom" 
+    TEMP_TAB=$(mktemp -d)
+    trap 'rm -rf ${TEMP_TAB}' EXIT
+    unzip -q ${TAB} -d ${TEMP_TAB}
+    BIOME="${TEMP_TAB}/*/data/feature-table.biom" 
     if [[ ! -f $(echo ${BIOME}) ]] ; then
         echo -e "[ERROR] ${TAB} may not be a feature table. "
         exit 1
+    else 
+        echo -e "[INFO] The feature table data unzipped to temporary directory.  ${BIOME}"
     fi
 fi
 ## 5.3.3 ASV配列の展開 ${ASVFA}
 if [[ -n "${SEQ}" ]]; then
-    temp_seq=$(mktemp -d)
-    trap 'rm -rf ${temp_seq}' EXIT
-    unzip -q ${SEQ} -d ${temp_seq} 
-    ASVFA="${temp_seq}/*/data/dna-sequences.fasta"
+    TEMP_SEQ=$(mktemp -d)
+    trap 'rm -rf ${TEMP_SEQ}' EXIT
+    unzip -q ${SEQ} -d ${TEMP_SEQ} 
+    ASVFA="${TEMP_SEQ}/*/data/dna-sequences.fasta"
 
     if [[ ! -f $(echo ${ASVFA}) ]] ; then
         echo -e "[ERROR] ${SEQ} may not be a ASV fasta. "
         exit 1
+    else 
+        echo -e "[INFO] The ASV fasta unzipped to temporary directory.  ${ASVFA}"    
     fi
 
 fi
 
 # 5.4. データを結合
+## ASV_IDの対応表を作成
+cut -f1 ${TAXTSV} | awk 'NR>1{print $1"\t" "OTU" NR-1}' > asv_correspo.tsv
+ls asv_correspo.tsv > /dev/null 2>&1 || { echo -e "[ERROR] There is not ASV_ID correspondign table." ; }
+
+## 一時ファイルを格納するディレクトリ(5.4 及び　5.5で使うファイルはここに格納)
+temp_cnt=$(mktemp -d)
+trap 'rm -rf $temp_cnt' EXIT
+
+## taxonomyとASVテーブル及びASV配列の結合 
+## NOTE: この部分は関数にするmtaxと結合　taxonomy, feature-table, DP, pick.table, rm.table
 if [[ -f $(echo ${ASVFA}) && -f $(echo ${BIOME}) ]] ; then
-    ## taxonomyデータとの結合 feature-table & ASV-fasta
+    ## taxonomyデータとfeature-tableの結合 (一時ファイルに書き出し)、リード数でフィルタ(filter_featureの代替)
     biom convert -i ${BIOME} -o ./feature-table.tsv --to-tsv 
-    mtax ${TAXTSV} feature-table.tsv > ${OTT}
-    mtseq ${TAXTSV} ${ASVFA} > ${OTF} 
+    mtax ${TAXTSV} feature-table.tsv > ${temp_cnt}/tmp_taxtsv
+    HDC=($(head -1 ${temp_cnt}/tmp_taxtsv))
+    echo ${HDC[@]} | tr ' ' '\t' > ${temp_cnt}/${OTT}
+    awk -F"\t" 'NR==FNR{a[$1]=$2}NR!=FNR{if ($1 in a) {print a[$1]"\t"$0 } }' asv_correspo.tsv ${temp_cnt}/tmp_taxtsv \
+    | cut -f1,3- | sort -t$'\t' -V -k1,1 >> ${temp_cnt}/${OTT}
 
-elif [[ -f $(echo ${BIOME}) ]]; then
-    ## taxonomyデータとfeature-tableを結合
-    biom convert -i ${BIOME} -o ./feature-table.tsv --to-tsv 
-    mtax ${TAXTSV} feature-table.tsv > ${OTT}
+    ## リード数でフィルタ(filter_featureの代替)
+    if [[ ${DP} > 1 ]]; then
+      ## 最大リード数以下のOTUのIDを取得(ヘッダ行があることに注意)
+      PICKOTU=($(cut -f1,10- ${temp_cnt}/${OTT} \
+      | awk -F"\t" -v DP=${DP} 'NR>1{for(i=2;i<=NF;i++){if(max[NR]==0){max[NR]=$i}else if(max[NR]<$i){max[NR]=$i}};if( max[NR]>DP)print $1;}' ))
+      ## フィルターパスしたカウントテーブルと除去したカウントテーブルを別々に保存
+      awk 'NR==FNR{a[$1]=$1}NR!=FNR{if ($1 in a) print > "'${temp_cnt}/pick_otu.txt'"; else print > "'${temp_cnt}/rm_otu.txt'" }' \
+        <( echo ${PICKOTU[@]}|tr ' ' '\n' ) \
+        <( awk -F"\t" 'NR>1' ${temp_cnt}/${OTT} )
+      ## カレントディレクトリにヘッダ行を追記して書き出し
+      head -1 ${temp_cnt}/${OTT} > ${OTT}
+      cat "${temp_cnt}/pick_otu.txt" >> ${OTT}
+      head -1 ${temp_cnt}/${OTT} > removed_otu.tsv
+      cat "${temp_cnt}/rm_otu.txt" >> removed_otu.tsv
+    else
+      cp ${temp_cnt}/${OTT} ./${OTT}
+    fi
 
-elif [[ -f $(echo ${ASVFA}) ]]; then
-    ## taxonomyデータとASV配列を結合
-    mtseq ${TAXTSV} ${ASVFA} > ${OTF}
+    ## taxonomyデータとASV-fastaの結合  
+    mtseq ${TAXTSV} ${ASVFA} > ${temp_cnt}/tmp_taxseq
+    HDT=($(head -1 ${temp_cnt}/tmp_taxseq))
+    echo ${HDT[@]} | tr ' ' '\t' > ${temp_cnt}/${OTF}
+    awk -F"\t" 'NR==FNR{a[$1]=$2}NR!=FNR{if ($1 in a) {print a[$1]"\t"$0 } }' asv_correspo.tsv ${temp_cnt}/tmp_taxseq \
+    | cut -f1,3- | sort -t$'\t' -V -k1,1 >> ${temp_cnt}/${OTF} 
+
+    ## Removed OTU-table & Picked OTU-table (カレントディレクトリに書き出し)
+    if [[ ${DP} > 1 ]]; then
+        PICKOTU=($(cut -f1,10- ${temp_cnt}/${OTT} \
+        | awk -F"\t" -v DP=${DP} 'NR>1{for(i=2;i<=NF;i++){if(max[NR]==0){max[NR]=$i}else if(max[NR]<$i){max[NR]=$i}};if( max[NR]>DP)print $1;}' ))
+        awk 'NR==FNR{a[$1]=$1}NR!=FNR{if ($1 in a) print > "'${temp_cnt}/pick_otu.txt'"; else print > "'${temp_cnt}/rm_otu.txt'" }' \
+        <( echo ${PICKOTU[@]}|tr ' ' '\n' ) \
+        <( awk -F"\t" 'NR>1' ${temp_cnt}/${OTT} )
+
+        awk 'NR==FNR{a[$1]=$1}NR!=FNR{if ($1 in a) print > "'${temp_cnt}/pick_asv.txt'"; else print > "'${temp_cnt}/rm_asv.txt'"}' \
+        <( echo ${PICKOTU[@]}|tr ' ' '\n' ) \
+        <( awk -F"\t" 'NR>1' ${temp_cnt}/${OTF} ) 
+
+        head -1 ${temp_cnt}/${OTT} > ${OTT}
+        cat "${temp_cnt}/pick_otu.txt" >> ${OTT}
+        head -1 ${temp_cnt}/${OTT} > removed_otu.tsv
+        cat "${temp_cnt}/rm_otu.txt" >> removed_otu.tsv
+
+        head -1 ${temp_cnt}/${OTF} > ${OTF}
+        cat "${temp_cnt}/pick_asv.txt" >> ${OTF}
+        head -1 ${temp_cnt}/${OTF} > removed_asv.txt
+        cat "${temp_cnt}/rm_asv.txt" >> removed_asv.txt
+    else
+      cp ${temp_cnt}/${OTF} ./${OTF}
+    fi
+
+# elif [[ -f $(echo ${BIOME}) ]]; then
+#     ## taxonomyデータとfeature-tableを結合
+#     biom convert -i ${BIOME} -o ./feature-table.tsv --to-tsv 
+#     mtax ${TAXTSV} feature-table.tsv \
+#     | awk -F"\t" 'NR==FNR{a[$1]=$2}NR!=FNR{if ($1 in a) {print a[$1]"\t"$0 } }' asv_correspo.tsv - \
+#     | cut -f1,3- | sort -t$'\t' -V -k1,1 > ${OTT}
+#     #mtax ${TAXTSV} feature-table.tsv > ${OTT}
+
+# elif [[ -f $(echo ${ASVFA}) ]]; then
+#     ## taxonomyデータとASV配列を結合
+#     mtseq ${TAXTSV} ${ASVFA} \
+#     | awk -F"\t" 'NR==FNR{a[$1]=$2}NR!=FNR{if ($1 in a) {print a[$1]"\t"$0 } }' asv_correspo.tsv - \
+#     | cut -f1,3- | sort -t$'\t' -V -k1,1 > ${OTF} 
+#     #mtseq ${TAXTSV} ${ASVFA} > ${OTF}
 else 
-    echo -e "[ERROR] The ${SEQ} may not be an ASV sequence. "
+    echo -e "[ERROR] The ${ASVFA} and ${BIOME} does not exists. "
     exit 1
 fi
 
@@ -325,10 +429,6 @@ fi
 # echo -e "[Names of samples]\t"${smps[@]}
 # echo -e "[Names of taxonomic rank]\t"${rank[@]}
 
-## 一時ファイルを格納するディレクトリ
-temp_cnt=$(mktemp -d)
-trap 'rm -rf $temp_cnt' EXIT
-
 ## rank毎に行持ちデータフレームを作成し、要約
 for j in ${!ntax[@]}; do
   ptax=${ntax[$j]}; tax=${rank[$j]}
@@ -344,10 +444,11 @@ abr=(`for i in ${rank[@]}; do echo ${i:0:1}; done`)
 for k in ${!rank[@]}; do 
   rnk=${rank[$k]}
   in=${temp_cnt}/${rnk}.cnt
-  out=${OUTCNT}/count_${abr[$k]}.dat
+  out=${OUTCNT}/count_${abr[$k]}.tsv
 
  for x in ${smps[@]}; do 
-  grep ${x} ${in} | cut -f1,3 | sort -t$'\t' -k1,1 > ${temp_cnt}/${rnk}_${x}.tmp
+  cat ${in} | awk -F"\t" -v x=${x} '$2==x{print $1"\t"$3}' \
+  | sort -t$'\t' -k1,1 > ${temp_cnt}/${rnk}_${x}.tmp
  done
  
 n_temp=`ls ${temp_cnt}/*.tmp | wc -l` # sample numbers

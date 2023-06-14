@@ -42,6 +42,14 @@ q2Pipe.sh -e $CNEV -q $QENV -a $REF -f $FST -x $TAX -s ./fastq_dir
 ```
 
 ## Results
+- ASVのハッシュ値をOTUに変換
+|ASV_ID|S1|S2|S3|  
+| :--- | :---: | :---: | ---: |  
+| OTU1 | 6 | 0 | 8 |  
+| OTU2 | 29 | 0 | 7 | 
+| OTU3 | 316 | 180 | 54 |
+
+
 - taxonomyランク毎に集計したカウントテーブル作成  
 
 |taxon|S1|S2|S3|  
