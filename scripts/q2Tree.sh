@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION=0.1.230403
+VERSION=0.0.230403
 AUTHOR=SHOGO_KONISHI
 CMDNAME=`basename $0`
 
@@ -45,14 +45,10 @@ cat << EOS
     いずれもqza形式で指定します。編集されたnewickツリーは結合された出力ファイル[taxonomy_cnt.tsv|taxonomy_asv.tsv]として、
     tsv形式で書き出されます。
 
-
-    
 オプション: 
   -e    conda環境変数パス[default: ${HOME}/miniconda3/etc/profile.d/conda.sh ]
   -q    qiime2環境名[default: qiime2-2021.8 ]
-  -t    ASVテーブル [default: table.qza]
   -s    ASV配列 [default: repset.qza]
-  -o    出力ファイル名[default: taxonomy_cnt.tsv]
   -u    系統樹作成の際に、Unassignedタクソンを除外
   -h    ヘルプドキュメントの表示
 EOS
@@ -66,6 +62,7 @@ cat << EOS
 
 EOS
 }
+if [[ "$#" = 0 ]]; then print_doc; print_usg; exit 1; fi
 
 # 2. オプション引数の処理
 #  2.1. オプション引数の入力
@@ -74,9 +71,8 @@ do
   case $OPT in
     "e" ) CENV="$OPTARG";;
     "q" ) QENV="$OPTARG";;
-
     "s" ) SEQ="$OPTARG";;
-    "o" ) XTRE="$OPTARG";;
+    "o" ) OTRE="$OPTARG";;
     "u" ) FLG_u="TRUE" ;;
     "h" ) print_doc ; print_usg ; 
             exit 1 ;; 
@@ -106,7 +102,7 @@ else
     print_usg
     exit 1
 fi
-## ASV配列及の判定
+## ASV配列の判定
 if [[ -z "${SEQ}" ]]; then echo "[ERROR] The options [-s] must be required."; exit 1 ; fi
 if [[ ! -f ${SEQ} || ${SEQ##*.} != 'qza' ]] ; then 
   echo "[ERROR] The ASV sequence, ${SEQ}, does not exist or is not in qza format." 
@@ -115,10 +111,10 @@ fi
 
 ## 出力ファイル名
 ## その他オプション引数の判定 
-if [[ -z "${XTRE}" ]]; then XTRE='taxtree.nwk'; fi
+if [[ -z "${OTRE}" ]]; then OTRE='exported_tree'; else ;fi
+XTRE="${OTRE}/."
 if [[ "${FLG_u}" = "TRUE" ]]; then UAT="TRUE" ; else UAT="FALSE" ; fi
-OUTRE='exported_tree' # output tree directory
-OTF='taxonomy_asv.tsv' # output
+
 
 # 3. コマンドライン引数の処理 
 if [[ $# = 1 ]]; then 
@@ -135,15 +131,13 @@ fi
 # 4. プログラムに渡す引数の一覧
 cat << EOS >&2
 ### Merge taxonomy into count data, ASV sequences, and ASV trees ###
-conda environmental values :        [ ${CENV} ]
-qiime2 environment :                [ ${QENV} ]
-
-The input taxonomy file path:       [ ${TAX} ]
-The input ASV file path:            [ ${SEQ} ]
-
-output directory for phylogeny:     [ ${OUTRE} ]
-output taxonomy tree:               [ ${XTRE} ]
-Remove Unassigned taxon from tree:  [ ${UAT} ]
+  conda environmental values :        [ ${CENV} ]
+  qiime2 environment :                [ ${QENV} ]
+  The input taxonomy file path:       [ ${TAX} ]
+  The input ASV file path:            [ ${SEQ} ]
+  output directory for phylogeny:     [ ${OTRE} ]
+  output taxonomy tree:               [ ${XTRE} ]
+  Remove Unassigned taxon from tree:  [ ${UAT} ]
 
 EOS
 
@@ -254,11 +248,10 @@ else
 fi
 
 ## 出力ディレクトリを確認
-OUTRE='exported_tree'
-if [[ -d "${OUTRE}" ]]; then
-    echo "[WARNING] ${OUTRE} was already exists. The output files may be overwritten." >&2
+if [[ -d "${OTRE}" ]]; then
+    echo "[WARNING] ${OTRE} was already exists. The output files may be overwritten." >&2
 else 
-    mkdir "${OUTRE}"
+    mkdir "${OTRE}"
 fi
 
 ## 4-2. マルチプルアラインメント
@@ -271,16 +264,16 @@ qiime phylogeny fasttree --i-alignment masked-aligned-repset.qza --o-tree unroot
 ## 4-5. Midpoint root 
 qiime phylogeny midpoint-root --i-tree unrooted-tree.qza --o-rooted-tree rooted-tree.qza
 ## 4-6. Export tree as newick format and modify nodes of the tree.
-qiime tools export --input-path rooted-tree.qza --output-path ${OUTRE}
+qiime tools export --input-path rooted-tree.qza --output-path ${OTRE}
 
 ## 4-7. Modify nodes of the newick tree.
-TRE="${OUTRE}/tree.nwk"
+TRE="${OTRE}/tree.nwk"
 id_tax ${TAXTSV} \
 | awk -F"\t" 'NR==FNR{arr[$1]=$2;} \
-NR!=FNR{for (i in arr){gsub(i, arr[i])};  print; }' - ${TRE} > ${XTRE}
+NR!=FNR{for (i in arr){gsub(i, arr[i])};  print; }' - ${TRE} > ${OTRE}/${XTRE}
 
 
 # 5.6. 一時ファイルの移動, 削除
-mv aligned-repset.qza masked-aligned-repset.qza unrooted-tree.qza rooted-tree.qza ${OUTRE}
+mv aligned-repset.qza masked-aligned-repset.qza unrooted-tree.qza rooted-tree.qza ${OTRE}
 if [[ -f feature-table.tsv ]];then rm feature-table.tsv; fi
 if [[ -f repset_tmp.qza ]];then rm repset_tmp.qza; fi

@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION=0.1.230217
+VERSION=0.0.230217
 AUTHOR=SHOGO_KONISHI
 CMDNAME=`basename $0`
 
@@ -100,9 +100,9 @@ fi
 # 4. 引数の一覧
 cat << EOS >&2
 ### Create a manifest file ###
-The output file path:        [ ${OUTPUT} ]
-The delimetter of manifest:  [ ${DIV} ] 
-Paired or single end:        [ ${DRCTN} ]
+  The output file path:        [ ${OUTPUT} ]
+  The delimetter of manifest:  [ ${DIV} ] 
+  Paired or single end:        [ ${DRCTN} ]
 
 EOS
 

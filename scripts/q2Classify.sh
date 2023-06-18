@@ -1,20 +1,20 @@
 #!/bin/bash
-VERSION=0.1.230302
+VERSION=0.0.230302
 AUTHOR=SHOGO_KONISHI
 CMDNAME=`basename $0`
 
 ### <CONTENTS> qiime feature-classifierを用いて系統推定 ###
 # 1. ドキュメント
 # 2. オプション引数の処理
-## 2.1. オプション引数の入力
-## 2.2. オプション引数の判定
+#  2.1. オプション引数の入力
+#  2.2. オプション引数の判定
 # 3. コマンドライン引数の処理
 # 4. 引数の一覧
 # 5. メイン
-## 5.1. qiime2 起動
-## 5.2. qiime feature-lassifierを実行
-## 5.3. taxonomyテーブルをqzv形式とテキストファイルに変換
-## 5.4. 棒グラフを作成　qiime taxa barplot
+#  5.1. qiime2 起動
+#  5.2. qiime feature-lassifierを実行
+#  5.3. taxonomyテーブルをqzv形式とテキストファイルに変換
+#  5.4. 棒グラフを作成　qiime taxa barplot
 
 # 1. ドキュメント
 ## 1.1. ヘルプの表示
@@ -81,7 +81,7 @@ cat << EOS
     $CMDNAME -a silva-138-99-nb-classifier.qza -e \${CENV} -q \${Q2ENV} repset.qza table.qza
 
 EOS
-}    
+}
 if [[ $# = 0 ]]; then print_doc; print_usg; exit 1; fi
 
 # 2. オプション引数の処理
@@ -189,19 +189,19 @@ fi
 # 4. プログラムに渡す引数の一覧
 cat << EOS >&2
 ### Taxonomy classification ###
-conda environmental variables :     [ ${CENV} ]
-qiime2 environment :                [ ${QENV} ]
-number of threads :                 [ ${NT} ]  
-The input ASV file path:            [ ${ASV} ] 
-The input ASV table file path:      [ ${TAB} ]
-Refference classifier for sklearn:  [ ${CLF} ]
-confidence value for sklearn:       [ ${CONF} ]  
-Refference fasta for blast :        [ ${REFA} ]
-Refference taxonomy for blast:      [ ${RETAX} ]
-metadata for drawing bar-plot       [ ${META} ]
-output taxonomy:                    [ ${OTAX} ]  
-output taxonomy table:              [ ${OTT} ]
-output barplot:                     [ ${OBP} ]
+  conda environmental variables :     [ ${CENV} ]
+  qiime2 environment :                [ ${QENV} ]
+  number of threads :                 [ ${NT} ]
+  The input ASV file path:            [ ${ASV} ]
+  The input ASV table file path:      [ ${TAB} ]
+  Refference classifier for sklearn:  [ ${CLF} ]
+  confidence value for sklearn:       [ ${CONF} ]  
+  Refference fasta for blast :        [ ${REFA} ]
+  Refference taxonomy for blast:      [ ${RETAX} ]
+  metadata for drawing bar-plot       [ ${META} ]
+  output taxonomy:                    [ ${OTAX} ]  
+  output taxonomy table:              [ ${OTT} ]
+  output barplot:                     [ ${OBP} ]
 
 EOS
 

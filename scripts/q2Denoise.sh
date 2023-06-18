@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION=0.1.230224
+VERSION=0.0.230224
 AUTHOR=SHOGO_KONISHI
 CMDNAME=`basename $0`
 
@@ -174,15 +174,15 @@ if [[ -z "$VALUE_c" ]]; then NT=4; else NT=${VALUE_c};fi
 # 1-6. プログラムに渡す引数の一覧
 cat << EOS >&2
 ### Denoising ###
-conda environmental variables :                             [ ${CENV} ]
-qiime2 environment :                                        [ ${QENV} ] 
-Manifest file:                                              [ ${MNFST} ] 
-Format of manifest file :                                   [ ${MFMT} ]  
-Paired/Single end :                                         [ ${DRCTN} ]
-The position to be truncated at Read1:                      [ ${TRUNKF} ]
-The position to be truncated at Read2:                      [ ${TRUNKR} ]
-Reads shorter than this value will be discarded(single).    [ ${TRUNKL} ]
-Number of threads :                                         [ ${NT} ] 
+  conda environmental variables :                             [ ${CENV} ]
+  qiime2 environment :                                        [ ${QENV} ]
+  Manifest file:                                              [ ${MNFST} ]
+  Format of manifest file :                                   [ ${MFMT} ]
+  Paired/Single end :                                         [ ${DRCTN} ]
+  The position to be truncated at Read1:                      [ ${TRUNKF} ]
+  The position to be truncated at Read2:                      [ ${TRUNKR} ]
+  Reads shorter than this value will be discarded(single).    [ ${TRUNKL} ]
+  Number of threads :                                         [ ${NT} ]
 
 EOS
 
