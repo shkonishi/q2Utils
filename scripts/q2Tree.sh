@@ -29,9 +29,9 @@ cat << EOS
 
 用語の定義およびこのプログラム中で使用されるデフォルトファイル名:
     ASV配列     Denoisingされた配列 [repset.qza]
-    ASVテーブル  検体に含まれるASVのリードカウントテーブル. qiime2的にはfeature-table [table.qza]
+    feature-table  検体に含まれるASVのリードカウントテーブル. qiime2的にはfeature-table [table.qza]
     taxonomy    ASVの系統推定結果 qiime feature-classifierの出力 [taxonomy.qza]
-    系統組成表   taxonomyデータとASVテーブルを結合したもの [taxonomy_cnt.tsv]
+    系統組成表   taxonomyデータとfeature-tableを結合したもの [taxonomy_cnt.tsv]
 
 説明:
     このプログラムはqiime2が出力したASV配列とtaxonomyデータから、
@@ -49,6 +49,7 @@ cat << EOS
   -e    conda環境変数パス[default: ${HOME}/miniconda3/etc/profile.d/conda.sh ]
   -q    qiime2環境名[default: qiime2-2021.8 ]
   -s    ASV配列 [default: repset.qza]
+  -o    出力ディレクトリ [default: exported_tree]
   -u    系統樹作成の際に、Unassignedタクソンを除外
   -h    ヘルプドキュメントの表示
 EOS
@@ -57,7 +58,7 @@ EOS
 function print_usg() {
 cat << EOS
 使用例:   
-    $CMDNAME -s repset.qza taxonomy.qza         # ASV-tree構築 & ASV配列とtaxonomyの結合
+    $CMDNAME -s repset.qza taxonomy.qza         # ASV-tree構築 
     $CMDNAME -s repset.qza -u taxonomy.qza      # ASV-treeからUnassigned taxonを除去
 
 EOS
@@ -111,8 +112,8 @@ fi
 
 ## 出力ファイル名
 ## その他オプション引数の判定 
-if [[ -z "${OTRE}" ]]; then OTRE='exported_tree'; else ;fi
-XTRE="${OTRE}/."
+if [[ -z "${OTRE}" ]]; then OTRE='exported_tree'; else : ; fi
+XTRE="${OTRE}/taxonomy.nwk"
 if [[ "${FLG_u}" = "TRUE" ]]; then UAT="TRUE" ; else UAT="FALSE" ; fi
 
 
@@ -147,7 +148,7 @@ source ${CENV}
 if echo ${CENV} | grep -q "anaconda" ; then source activate ${QENV}; else conda activate ${QENV}; fi
 
 # 5.2. 関数定義 
-## 5.2.1 関数定義, ASVテーブルとtaxonomyデータとASV配列を結合
+## 5.2.1 関数定義, feature-tableとtaxonomyデータとASV配列を結合
 function mtax () {
     TTAX=$1; TTAB=$2 
     # カウントデータからヘッダ行抽出
@@ -162,7 +163,7 @@ function mtax () {
     # ヘッダ行作成
     HDC=(`echo ASV_ID confidence ${RANK[@]} ${HD[@]}`)
 
-    # idの同一性チェック(taxonomyとASVテーブルをマージする場合)
+    # idの同一性チェック(taxonomyとfeature-tableをマージする場合)
     id_tab=(`grep -v "^#" ${TTAB} | awk -F"\t" '{print $1}'`)
     id_tax=(`grep -v "^Feature" ${TTAX} | awk -F"\t" '{print $1}'`)
     un1=(`echo ${id_tab[*]} ${id_tax[*]} | tr ' ' '\n' | sort | uniq -c | awk '{print $1 }' | uniq`) 
@@ -199,10 +200,13 @@ function faGetrest (){
 
 
 # 5.3. qza ファイルを一時ディレクトリに展開
-## 5.3.1 taxonomyファイルの展開 ${TAXTSV}
+## 5.3.1 taxonomyファイルの展開 ${TAXTSV}, ASV配列一時ディレクトリに展開 ${ASVFA}
 temp_tax=$(mktemp -d)
-trap 'rm -rf $temp_tax' EXIT
+temp_seq=$(mktemp -d)
+trap 'rm -rf ${temp_seq} ${temp_tax}' EXIT
+unzip -q ${SEQ} -d ${temp_seq} 
 unzip -q ${TAX} -d $temp_tax
+ASVFA="${temp_seq}/*/data/dna-sequences.fasta"
 TAXTSV="${temp_tax}/*/data/taxonomy.tsv"
 
 if [[ ! -f $(echo $TAXTSV) ]] ; then 
@@ -211,12 +215,6 @@ if [[ ! -f $(echo $TAXTSV) ]] ; then
 else 
   echo -e "[INFO] The taxonomy data unzipped to temporary directory.  ${TAXTSV}"
 fi
-
-## 5.3.2 ASV配列一時ディレクトリに展開 ${ASVFA}
-temp_seq=$(mktemp -d)
-trap 'rm -rf ${temp_seq}' EXIT
-unzip -q ${SEQ} -d ${temp_seq} 
-ASVFA="${temp_seq}/*/data/dna-sequences.fasta"
   
 if [[ ! -f $(echo ${ASVFA}) ]] ; then
   echo -e "[ERROR] ${SEQ} may not be a ASV fasta. "
@@ -269,11 +267,10 @@ qiime tools export --input-path rooted-tree.qza --output-path ${OTRE}
 ## 4-7. Modify nodes of the newick tree.
 TRE="${OTRE}/tree.nwk"
 id_tax ${TAXTSV} \
-| awk -F"\t" 'NR==FNR{arr[$1]=$2;} \
-NR!=FNR{for (i in arr){gsub(i, arr[i])};  print; }' - ${TRE} > ${OTRE}/${XTRE}
+| awk -F"\t" 'NR==FNR{arr[$1]=$2;} NR!=FNR{for (i in arr){gsub(i":", arr[i]":")};  print; }' - ${TRE} > ${XTRE}
 
 
-# 5.6. 一時ファイルの移動, 削除
-mv aligned-repset.qza masked-aligned-repset.qza unrooted-tree.qza rooted-tree.qza ${OTRE}
-if [[ -f feature-table.tsv ]];then rm feature-table.tsv; fi
-if [[ -f repset_tmp.qza ]];then rm repset_tmp.qza; fi
+# # 5.6. 一時ファイルの移動, 削除
+# mv aligned-repset.qza masked-aligned-repset.qza unrooted-tree.qza rooted-tree.qza ${OTRE}
+# 
+# if [[ -f repset_tmp.qza ]];then rm repset_tmp.qza; fi

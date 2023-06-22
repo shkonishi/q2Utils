@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION=0.0.230617
+VERSION=0.0.230622
 AUTHOR=SHOGO_KONISHI
 CMDNAME=`basename $0`
 
@@ -14,9 +14,12 @@ CMDNAME=`basename $0`
 #  5.1. qiime2起動
 #  5.2. 関数定義 
 #  5.3. qza ファイルを一時ディレクトリに展開
-#  5.4. データを結合
-#  5.5. ASVの系統樹を作成
-#  5.6. 一時ファイルの移動, 削除
+#  5.4. 出力ディレクトリ及び一時ディレクトリ作成
+#  5.5. ASVのラベル変更
+#  5.6. feature-tableのフィルタリング
+#  5.7. フィルタ後のASV, feature-table, taxonomyをqzaに変換
+#  5.8. taxonomyとfeature-tableをマージ
+#  5.9. taxonomy rankごとに集計
 ###
 
 
@@ -28,31 +31,28 @@ cat << EOS
     $CMDNAME [オプション] <taxonomy.qza> 
 
 用語の定義およびこのプログラム中で使用されるデフォルトファイル名:
-    ASV配列     Denoisingされた配列 [repset.qza]
-    ASVテーブル  検体に含まれるASVのリードカウントテーブル. qiime2的にはfeature-table [table.qza]
-    taxonomy    ASVの系統推定結果 qiime feature-classifierの出力 [taxonomy.qza]
-    系統組成表   taxonomyデータとASVテーブルを結合したもの [taxonomy_cnt.tsv]
+    ASV配列          Denoisingされた配列 [repset.qza]
+    feature-table   検体に含まれるASVのリードカウントテーブル. [table.qza]
+    taxonomy        ASVの系統推定結果 qiime feature-classifierの出力 [taxonomy.qza]
+    系統組成表        taxonomyデータとfeature-tableを結合したもの [taxonomy_cnt.tsv]
 
 説明:
-    このプログラムはqiime2が出力したASVテーブルとtaxonomyデータの結合(系統組成表)、
-    またはASV配列とtaxonomyデータの結合のいずれかまたは両方を実行します。
-    もう一つの機能として、ノードラベルをtaxonomic-nameに変換したASV配列の系統樹を作成します。
+    このプログラムではqiime2が出力したfeature-table, taxonomy, 及びASV配列を以下のように編集します。
+      - ラベルの変更
+      - feature-table、taxonomy及びASV配列を最大リード数でフィルタリング
+      - フィルタリング後のfeature-tableとtaxonomyをマージ
+      - 分類階層ごとのカウントテーブルに要約
 
     入力ファイルはコマンドライン引数にtaxonomyデータ[taxonomy.qza]を指定し、
-    オプション引数としてASVテーブル[table.qza]またはASV配列[repset.qza]のいずれかまたは両方を指定してください。
-    いずれもqza形式で指定します。結合された出力ファイルは[taxonomy_cnt.tsv|taxonomy_asv.tsv]として、
-    tsv形式で書き出されます。
+    オプション引数としてfeature-table[table.qza]及びASV配列[repset.qza]の両方を指定してください。
+    いずれもqza形式で指定します。編集後の出力ファイルは全てtsv形式で出力フォルダに書き出されます。
 
-    ASV配列の系統樹を作成する場合、uオプションを指定することで、系統アサインされなかったASVは除去できます。
-    qiime2の出力するnewick形式のASVツリーでは、各ノードがASVのハッシュ値となっているため上記の系統組成表を基にして
-    taxonomic-nameに変換して出力します。
-    
 オプション: 
   -e    conda環境変数パス[default: ${HOME}/miniconda3/etc/profile.d/conda.sh ]
   -q    qiime2環境名[default: qiime2-2021.8 ]
-  -t    ASVテーブル [default: table.qza]
+  -t    feature-table [default: table.qza]
   -s    ASV配列 [default: repset.qza]
-  -n    ASVテーブルとASV配列から、最大読み取り回数がn回以下の配列を削除 [default: 0 ] 
+  -n    feature-tableとASV配列から、最大読み取り回数がn回以下の配列を削除 [default: 0 ] 
         qiime feature-table filter-featuresは使用していない
   -o    出力ディレクトリ名[default: Results]
   -p    出力ファイルプレフィックス[default: otu]
@@ -117,7 +117,7 @@ else
     exit 1
 fi
 
-## ASV配列, ASVテーブルの判定
+## ASV配列, feature-tableの判定
 if [[ -z "${VALUE_s}" || -z "${VALUE_t}" ]]; then echo "[ERROR] Both options t/s must be selected."; exit 1 ; fi
 if [[ -n "${VALUE_s}" && -n "${VALUE_t}" ]]; then
     SEQ=${VALUE_s} ; TAB=${VALUE_t}
@@ -154,8 +154,18 @@ fi
 if [[ -z "${VALUE_p}" ]];then PFX='otu' ; else PFX=${VALUE_p} ; fi
 OTT=${OUTD}/${PFX}_filtered_cnt.tsv
 RTT=${OUTD}/${PFX}_removed_cnt.tsv 
+OTTZ=${OUTD}/${PFX}_filtered_cnt.qza
+
 OTF=${OUTD}/${PFX}_filtered_asv.tsv 
 RTF=${OUTD}/${PFX}_removed_asv.tsv
+OTFA=${OUTD}/${PFX}_filtered_asv.fasta
+OTFAZ=${OUTD}/${PFX}_filtered_asv.qza
+
+OTX=${OUTD}/${PFX}_filtered_tax.tsv
+RTX=${OUTD}/${PFX}_removed_tax.tsv
+OTXZ=${OUTD}/${PFX}_filtered_tax.qza
+
+MTT=${OUTD}/${PFX}_merged_cnt.tsv
 
 # 3. コマンドライン引数の処理 
 if [[ $# = 1 ]];then
@@ -170,17 +180,28 @@ fi
 # 4. プログラムに渡す引数の一覧
 cat << EOS >&2
 ### Merge taxonomy into count data, ASV sequences, and ASV trees ###
-  conda environmental values :          [ ${CENV} ]
-  qiime2 environment :                  [ ${QENV} ]
-  Input taxonomy file path:             [ ${TAX} ]
-  Input ASV table file path:            [ ${TAB} ]
-  Input ASV file path:                  [ ${SEQ} ]
-  A maximum read count of remove        [ ${DP} ]
-  Output directory:                     [ ${OUTD} ]
-  Output filtered count table:          [ ${OTT} ]
-  Output removed taxonomy table:        [ ${RTT} ]
-  Output filtered ASV sequence table:   [ ${OTF} ]
-  Output removed ASV sequence table:    [ ${RTF} ]
+  conda environmental values :              [ ${CENV} ]
+  qiime2 environment :                      [ ${QENV} ]
+  Input taxonomy file path:                 [ ${TAX} ]
+  Input ASV table file path:                [ ${TAB} ]
+  Input ASV file path:                      [ ${SEQ} ]
+  A maximum read count of remove            [ ${DP} ]
+  Output directory:                         [ ${OUTD} ]
+  
+  Output filtered count table:              [ ${OTT} ]
+  Output removed taxonomy table:            [ ${RTT} ]
+  Output filtered count table(qza):         [ ${OTTZ} ]
+
+  Output filtered ASV sequence table:       [ ${OTF} ]
+  Output filtered ASV sequence fasta(qza):  [ ${OTFAZ} ]
+  Output removed ASV sequence table:        [ ${RTF} ]
+
+  Output filtered taxonomy table:           [ ${OTX} ]
+  Output filtered taxonomy table(qza):      [ ${OTXZ} ]  
+  Output removed taxonomy table:            [ ${RTX} ]
+
+  Output merged count table:                [ ${MTT} ]
+  
 
 EOS
 
@@ -245,7 +266,67 @@ function unqza () {
 
 }
 
-## 5.2.2. 関数定義: Combine taxonomy and feature-table <stdout>
+# 5.2.2. 関数定義: relabel 
+function relabel () {
+  CNT=$1 ; ASV=$2 ; TAX=$3; RLCNT=$4 ; RLASV=$5; RLTAX=$6
+  # ASVのハッシュ値とOTUの対応表. この段階でASV_IDの同一性の確認は取れているものとする
+  cut -f1 ${CNT} | awk 'NR>2{print $1"\t" "OTU" NR-2}' > asv2otu.tsv
+  ls asv2otu.tsv > /dev/null 2>&1 || { echo -e "[ERROR] There is not ASV_ID corresponding table." ; }
+
+  # ラベル置換
+  head -2 ${CNT} | tail -1  > ${RLCNT}
+  echo -e "OTU_ID\tSeq"> ${RLASV}
+  head -1 ${TAX} > ${RLTAX}
+  paste asv2otu.tsv <(awk 'NR>2' ${CNT}) | awk -F"\t" '{if($1==$3){print}}' | cut -f2,4- >> ${RLCNT}
+  paste asv2otu.tsv <(cat ${ASV} | awk 'BEGIN{RS=">"; FS="\n"} NR>1 {print $1"\t"$2;}') \
+  | awk -F"\t" '{if($1==$3){print}}' | cut -f2,4- >> ${RLASV}
+  paste asv2otu.tsv <(awk 'NR>1' ${TAX})  | awk -F"\t" '{if($1==$3){print}}' | cut -f2,4- >> ${RLTAX}
+  # 列数Check
+
+}
+
+# 5.2.3. 関数定義: Filter
+function filterOtu () {
+  DP=$1; RLCNT=$2; RLASV=$3; RLTAX=$4
+  PICKCNT=$5; RMCNT=$6; PICKASV=$7;RMASV=$8; PICKTAX=$9; RMTAX=${10}
+  # echo $DP; echo $CNT; echo $ASV ; echo $TAX 
+  # echo $PICKCNT; echo $RMCNT; echo $PICKASV; echo $RMASV; echo $PICKTAX; echo $RMTAX
+
+  if [[ ${DP} > 1 ]]; then
+    ## 最大リード数以下のOTUのIDを取得(ヘッダ行があることに注意)
+    PICKOTU=($(cat ${RLCNT} \
+    | awk -F"\t" -v DP=${DP} 'NR>1{for(i=2;i<=NF;i++){if(max[NR]==0){max[NR]=$i}else if(max[NR]<$i){max[NR]=$i}};if( max[NR]>DP)print $1;}' ))
+    echo "[INFO] Pick ${#PICKOTU[@]} otu in $((`cat ${RLCNT} | wc -l`-1)) "
+
+    ## フィルターパスしたカウントテーブルと除去したカウントテーブルを別々に保存
+    head -1 ${RLCNT} > ${PICKCNT}
+    head -1 ${RLCNT} > ${RMCNT}
+    awk 'NR==FNR{a[$1]=$1}NR!=FNR{if ($1 in a) print >> "'${PICKCNT}'"; else print >> "'${RMCNT}'" }' \
+      <( echo ${PICKOTU[@]}|tr ' ' '\n' ) \
+      <( awk -F"\t" 'NR>1' ${RLCNT} )
+
+    ## フィルターパスしたASVと除去したASVを別々に保存
+    head -1 ${RLASV} > ${PICKASV}
+    head -1 ${RLASV} > ${RMASV}
+    awk 'NR==FNR{a[$1]=$1}NR!=FNR{if ($1 in a) print >> "'${PICKASV}'"; else print >> "'${RMASV}'"}' \
+    <( echo ${PICKOTU[@]}|tr ' ' '\n' ) \
+    <( awk -F"\t" 'NR>1' ${RLASV} ) 
+
+    ## フィルターパスしたtaxonomyと除去したtaxonomyを別々に保存?
+    head -1 ${RLTAX} > ${PICKTAX}
+    head -1 ${RLTAX} > ${RMTAX}
+    awk 'NR==FNR{a[$1]=$1}NR!=FNR{if ($1 in a) print >> "'${PICKTAX}'"; else print >> "'${RMTAX}'"}' \
+    <( echo ${PICKOTU[@]}|tr ' ' '\n' ) \
+    <( awk -F"\t" 'NR>1' ${RLTAX} ) 
+
+  else
+    mv ${RLCNT} ${PICKCNT}
+    mv ${RLASV} ${PICKASV}
+    mv ${RLTAX} ${PICKTAX}
+  fi
+}
+
+## 5.2.4. 関数定義: Combine taxonomy and feature-table <stdout>
 function mtax () {
   # NOTE: feature-tableにはコメント行が2行存在、ただし最終行末尾に改行コードがないので行数はtaxonomyと一緒になっている
   # NOTE: ASV_ID列を削除せずにpasteし、ASV_IDが同一の場合出力したのちにwc -lで確認
@@ -292,7 +373,7 @@ function mtax () {
       echo "[ERROR] The file format of inputs was invalid."
   fi
 }
-## 5.2.3. 関数定義: Combine taxonomy and ASV <stdout>
+## 5.2.5. 関数定義: Combine taxonomy and ASV <stdout>
 function mtseq () {
     TTAX=$1; TSEQ=$2; 
 
@@ -329,55 +410,11 @@ function mtseq () {
 
 }
 
-## 5.2.4. 関数定義: Relabel ASV_ID to OTU , output file name asv2otu.tsv
-function relabel () {
-  MCNT=$1 ; MASV=$2 ; RLCNT=$3 ; RLASV=$4
-  # ASVのハッシュ値とOTUの対応表. この段階でASV_IDの同一性の確認は取れているものとする
-  cut -f1 ${MCNT} | awk 'NR>1{print $1"\t" "OTU" NR-1}' > asv2otu.tsv
-  ls asv2otu.tsv > /dev/null 2>&1 || { echo -e "[ERROR] There is not ASV_ID corresponding table." ; }
-
-  # ラベル置換
-  head -1 ${MCNT} > ${RLCNT}
-  head -1 ${MASV} > ${RLASV}
-  paste asv2otu.tsv <(awk 'NR>1' ${MCNT}) | awk -F"\t" '{if($1==$3){print}}' | cut -f2,4- >> ${RLCNT}
-  paste asv2otu.tsv <(awk 'NR>1' ${MASV}) | awk -F"\t" '{if($1==$3){print}}' | cut -f2,4- >> ${RLASV}
-
-}
-
-## 5.2.5. 関数定義: Filter
-function filterOtu () {
-  DP=$1; CNT=$2; ASV=$3;  PICKCNT=$4; RMCNT=$5; PICKASV=$6;  RMASV=$7
-
-  if [[ ${DP} > 1 ]]; then
-    ## 最大リード数以下のOTUのIDを取得(ヘッダ行があることに注意)
-    PICKOTU=($(cut -f1,10- ${CNT} \
-    | awk -F"\t" -v DP=${DP} 'NR>1{for(i=2;i<=NF;i++){if(max[NR]==0){max[NR]=$i}else if(max[NR]<$i){max[NR]=$i}};if( max[NR]>DP)print $1;}' ))
-    
-    ## フィルターパスしたカウントテーブルと除去したカウントテーブルを別々に保存
-    head -1 ${CNT} > ${PICKCNT}
-    head -1 ${CNT} > ${RMCNT}
-    awk 'NR==FNR{a[$1]=$1}NR!=FNR{if ($1 in a) print >> "'${PICKCNT}'"; else print >> "'${RMCNT}'" }' \
-      <( echo ${PICKOTU[@]}|tr ' ' '\n' ) \
-      <( awk -F"\t" 'NR>1' ${CNT} )
-
-    ## フィルターパスしたASVと除去したASVを別々に保存
-    head -1 ${ASV} > ${PICKASV}
-    head -1 ${ASV} > ${RMASV}
-    awk 'NR==FNR{a[$1]=$1}NR!=FNR{if ($1 in a) print >> "'${PICKASV}'"; else print >> "'${RMASV}'"}' \
-    <( echo ${PICKOTU[@]}|tr ' ' '\n' ) \
-    <( awk -F"\t" 'NR>1' ${ASV} ) 
-
-  else
-    mv ${CNT} ${PICKCNT}
-    mv ${ASV} ${PICKASV}
-  fi
-}
-
-## 5.2.6. taxonomy rankごとに集計
+## 5.2.6. 関数定義: taxonomy rankごとに集計
 function rankCnt () {
   # USAGE: taxcomp taxonomy_cnt.tsv outdir
   OTT=$1 ; OUTCNT=$2 
-  if [[ -d ${OUTCNT} ]]; then echo "[WARNINGS] The ${OUTCNT} aleady exists."; else mkdir -p ${OUTCNT}; fi
+  if [[ -d ${OUTCNT} ]]; then echo "[WARNING] The ${OUTCNT} aleady exists."; else mkdir -p ${OUTCNT}; fi
   
   ## taxonomicランク列及びサンプル列を指定　
   ncol=`head -1 ${OTT} | awk -F"\t" '{print NF}'`
@@ -434,22 +471,37 @@ function rankCnt () {
 ## exported_txt内に展開される
 unqza ${TAX} ${TAB} ${SEQ}
 
-# 5.4. 
-## 出力ディレクトリ及び一時ディレクトリ作成
+# 5.4. 出力ディレクトリ及び一時ディレクトリ作成
 mkdir -p ${OUTD}
 TEMP=$(mktemp -d)
 trap "rm -rf ${TEMP}" EXIT
 
-## 5.5. ASVテーブル、ASV配列とtaxonomyを結合
-mtax exported_txt/taxonomy.tsv exported_txt/feature-table.tsv > ${TEMP}/merged_cnt
-mtseq exported_txt/taxonomy.tsv exported_txt/dna-sequences.fasta > ${TEMP}/merged_asv
+# 5.5. ラベル変更
+RLIN1=exported_txt/feature-table.tsv; RLIN2=exported_txt/dna-sequences.fasta; RLIN3=exported_txt/taxonomy.tsv
+RLOUT1=${TEMP}/relabel_cnt ;RLOUT2=${TEMP}/relabel_asv; RLOUT3=${TEMP}/relabel_tax 
+relabel $RLIN1 $RLIN2 $RLIN3 $RLOUT1 $RLOUT2 $RLOUT3
 
-# 5.6. ASVラベル変更
-relabel ${TEMP}/merged_cnt ${TEMP}/merged_asv ${TEMP}/relavel_cnt ${TEMP}/relavel_asv
-mv asv2otu.tsv ${OUTD}/.
+# 5.6. フィルタリング
+filterOtu $DP $RLOUT1 $RLOUT2 $RLOUT3 ${OTT} ${RTT} ${OTF} ${RTF} ${OTX} ${RTX}
+if ls asv2otu.tsv > /dev/null ; then mv asv2otu.tsv ${OUTD}/. ; fi
+echo "[INFO] Move asv2otu.tsv to ${OUTD} directory."
+# cat $OTT | wc -l 
 
-# 5.7. ASVテーブルフィルタリング
-filterOtu ${DP} ${TEMP}/relavel_cnt ${TEMP}/relavel_asv ${OTT} ${RTT} ${OTF} ${RTF}
+# 5.7. フィルタ後のASV, feature-table, taxonomyをqzaに変換
+## ASVをfastaに変換後qzaに変換
+cat ${OTF} | awk -F"\t" 'NR>1{print ">" $1"\n"$2}' > ${OTFA}
+qiime tools import --input-path ${OTFA} --output-path ${OTFAZ} --type 'FeatureData[Sequence]'
 
-# 5.8. taxonomy rankごとに集計
-rankCnt ${OTT} ${OUTD}
+## taxonomy
+qiime tools import --input-path ${OTX} --output-path ${OTXZ} --type 'FeatureData[Taxonomy]'
+
+## feature-table をbiomに変換後qzaに変換
+TMPBIOM=${TEMP}/tmp_biom
+biom convert -i $OTT -o $TMPBIOM --to-hdf5
+qiime tools import --input-path ${TMPBIOM} --output-path ${OTTZ} --type 'FeatureTable[Frequency]'
+
+# 5.8. Merge taxonomy and feature-table
+mtax $OTX $OTT > $MTT
+
+# 5.9. taxonomy rankごとに集計
+rankCnt $MTT $OUTD
