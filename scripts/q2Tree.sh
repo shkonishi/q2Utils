@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION=0.0.230403
+VERSION=0.0.230625
 AUTHOR=SHOGO_KONISHI
 CMDNAME=`basename $0`
 
@@ -226,11 +226,12 @@ fi
 
 # 5.4. ASVの系統樹を作成
 ## 5.4.1. ASV配列からUnassignedを除去, 除去したfastaを再びインポート 
+repset_tmp=${temp_seq}/repset_tmp.qza
 if [[ $UAT = "TRUE" ]]; then
     unid=(`cat ${TAXTSV} | awk -F"\t" '$2~/Unassigned/{print $1}'`)
-    repset_tmp=${temp_seq}/repset_tmp.qza
+
     if [[ "${#unid[@]}" > 0 ]]; then 
-        echo -e "# Remove unassigned ASV"
+        echo -e "[INFO] Remove unassigned ASV"
         echo -e "${unid[@]}" | tr ' ' '\n'
         faGetrest "${unid[*]}" ${ASVFA} dna-sequences_ast.fasta
         qiime tools import --input-path dna-sequences_ast.fasta --output-path ${repset_tmp} --type 'FeatureData[Sequence]'
@@ -242,7 +243,7 @@ if [[ $UAT = "TRUE" ]]; then
     fi
 else
     echo  
-    cp ${SEQ} repset_tmp.qza
+    cp ${SEQ} ${repset_tmp}
 fi
 
 ## 出力ディレクトリを確認
@@ -253,14 +254,18 @@ else
 fi
 
 ## 4-2. マルチプルアラインメント
-qiime alignment mafft --i-sequences repset_tmp.qza --o-alignment aligned-repset.qza
+qiime alignment mafft --i-sequences ${repset_tmp} --o-alignment aligned-repset.qza
 if [[ ! -f aligned-repset.qza ]] ; then echo "[ERROR] Failed multiple alignment" ; exit 1 ; fi
+
 ## 4-3. アライメントのマスク
 qiime alignment mask --i-alignment aligned-repset.qza --o-masked-alignment masked-aligned-repset.qza
+
 ## 4-4. 無根系統樹作成
 qiime phylogeny fasttree --i-alignment masked-aligned-repset.qza --o-tree unrooted-tree.qza
+
 ## 4-5. Midpoint root 
 qiime phylogeny midpoint-root --i-tree unrooted-tree.qza --o-rooted-tree rooted-tree.qza
+
 ## 4-6. Export tree as newick format and modify nodes of the tree.
 qiime tools export --input-path rooted-tree.qza --output-path ${OTRE}
 
@@ -270,7 +275,6 @@ id_tax ${TAXTSV} \
 | awk -F"\t" 'NR==FNR{arr[$1]=$2;} NR!=FNR{for (i in arr){gsub(i":", arr[i]":")};  print; }' - ${TRE} > ${XTRE}
 
 
-# # 5.6. 一時ファイルの移動, 削除
-# mv aligned-repset.qza masked-aligned-repset.qza unrooted-tree.qza rooted-tree.qza ${OTRE}
-# 
-# if [[ -f repset_tmp.qza ]];then rm repset_tmp.qza; fi
+# # 5.6. 一時ファイルの移動
+mv aligned-repset.qza masked-aligned-repset.qza unrooted-tree.qza rooted-tree.qza ${OTRE}
+

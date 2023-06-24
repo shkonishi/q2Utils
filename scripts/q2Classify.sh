@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION=0.0.230302
+VERSION=0.0.230625
 AUTHOR=SHOGO_KONISHI
 CMDNAME=`basename $0`
 
@@ -10,7 +10,7 @@ CMDNAME=`basename $0`
 #  2.2. オプション引数の判定
 # 3. コマンドライン引数の処理
 # 4. 引数の一覧
-# 5. メイン
+# 5. qiime2パイプライン実行 
 #  5.1. qiime2 起動
 #  5.2. qiime feature-lassifierを実行
 #  5.3. taxonomyテーブルをqzv形式とテキストファイルに変換
@@ -206,7 +206,7 @@ cat << EOS >&2
 EOS
 
 
-# 5. メイン
+# 5. qiime2パイプライン実行 
 ## 5.1. qiime2 起動
 source ${CENV}
 if echo ${CENV} | grep -q "anaconda" ; then source activate ${QENV}; else conda activate ${QENV}; fi
@@ -216,7 +216,7 @@ if echo ${CENV} | grep -q "anaconda" ; then source activate ${QENV}; else conda 
 if [[ -f ${OTAX} ]] ; then echo "[ERROR] The ${OTAX} was aleady exist."; exit 1; fi
 
 if [[ -f ${CLF} && ! -f ${REFA} && ! -f ${RETAX} ]]; then
-    echo "### Execute qiime feature-classifier classify-sklearn"
+    echo "[INFO] Execute qiime feature-classifier classify-sklearn"
     qiime feature-classifier classify-sklearn \
     --i-classifier ${CLF} \
     --i-reads ${ASV} \
@@ -225,7 +225,7 @@ if [[ -f ${CLF} && ! -f ${REFA} && ! -f ${RETAX} ]]; then
     --p-n-jobs ${NT}
 
 elif [[ -f ${REFA} && -f ${RETAX} && ! -f ${CLF} ]]; then
-    echo "### Execute qiime feature-classifier classify-consensus-blast"
+    echo "[INFO] Execute qiime feature-classifier classify-consensus-blast"
     # blast
     qiime feature-classifier classify-consensus-blast \
     --i-query ${ASV} \

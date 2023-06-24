@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION=0.0.230622
+VERSION=0.0.230625
 AUTHOR=SHOGO_KONISHI
 CMDNAME=`basename $0`
 
@@ -414,8 +414,8 @@ function mtseq () {
 function rankCnt () {
   # USAGE: taxcomp taxonomy_cnt.tsv outdir
   OTT=$1 ; OUTCNT=$2 
-  if [[ -d ${OUTCNT} ]]; then echo "[WARNING] The ${OUTCNT} aleady exists."; else mkdir -p ${OUTCNT}; fi
-  
+  if [[ ! -d ${OUTCNT} ]]; then echo "[ERROR] The ${OUTCNT} does not exists."; fi
+
   ## taxonomicランク列及びサンプル列を指定　
   ncol=`head -1 ${OTT} | awk -F"\t" '{print NF}'`
   ismp=10

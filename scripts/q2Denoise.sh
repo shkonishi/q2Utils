@@ -1,24 +1,28 @@
 #!/bin/bash
-VERSION=0.0.230224
+VERSION=0.0.230625
 AUTHOR=SHOGO_KONISHI
 CMDNAME=`basename $0`
 
 
 ### <CONTENTS> dada2を用いたデノイジング ###
 # 1. ドキュメント
+#  1.1. ヘルプの表示
+#  1.2. 使用例の表示
 # 2. オプション引数の処理
 #  2.1. オプション引数の入力
 #  2.2. オプション引数の判定
 # 3. コマンドライン引数の処理
 # 4. 引数の一覧
-# 5. メイン
-#  5.1. fastqディレクトリの絶対パスを取得
-#  5.2. ヘッダ行の生成 
-#  5.3. マニフェストファイル作成
-###
+# 5. qiime2パイプライン実行 
+#  5.1. qiime2起動
+#  5.2. fastqインポート& Denoising
+#  5.3. デノイジングのスタッツ, ASV, ASVテーブル をtxtファイルに変換
+#  5.4. デノイジングのスタッツ, ASV, ASVテーブル をqzvファイルに変換
+### 
 
 
 # 1. ドキュメント
+#  1.1. ヘルプの表示
 function print_doc() {
 cat << EOS
 使用法:
@@ -54,7 +58,7 @@ cat << EOS
 EOS
 }
 
-# 使用法の表示
+#  1.2. 使用例の表示
 function print_usg() {
 cat << EOS >&2
 使用例: 
@@ -62,19 +66,15 @@ cat << EOS >&2
     $CMDNAME -p manifest.txt
     $CMDNAME -p -F 270 -R 200 manifest.txt
 
+    CENV=\${HOME}/miniconda3/etc/profile.d/conda.sh
+    QENV='qiime2-2021.4'
+    $CMDNAME -e \$CENV -q \$QENV -s manifest.txt
+
 EOS
 }
 
-### 引数チェック ###
-# 1-1. オプションの入力処理 
-# 1-2. conda環境変数ファイルの存在確認
-# 1-3. qiime2環境の存在確認
-# 1-4. コマンドライン引数の判定 
-# 1-5. オプション引数の判定
-# 1-6. プログラムに渡す引数の一覧
-###
-
-# 1-1. オプションの入力処理 
+# 2. オプション引数の処理
+#  2.1. オプション引数の入力
 while getopts spe:q:c:F:R:l:h OPT
 do
   case $OPT in
@@ -97,8 +97,8 @@ do
 done
 shift `expr $OPTIND - 1`
 
-
-# 1-2. conda環境変数ファイルの存在確認
+#  2.2. オプション引数の判定
+#   2.2.1. conda環境変数ファイルの存在確認
 if [[ -z "$VALUE_e" ]]; then CENV="${HOME}/miniconda3/etc/profile.d/conda.sh"; else CENV=${VALUE_e}; fi
 if [[ ! -f "${CENV}" ]]; then
  echo "[ERROR] The file for the conda environment variable cannot be found. ${CENV}" >&2
@@ -106,7 +106,7 @@ if [[ ! -f "${CENV}" ]]; then
  exit 1
 fi
 
-# 1-3. qiime2環境の存在確認
+#   2.2.2. qiime2環境の存在確認
 if [[ -z "$VALUE_q" ]]; then QENV="qiime2-2022.2"; else QENV=${VALUE_q}; fi
 if conda info --envs | awk '!/^#/{print $1}'| grep -q "^${QENV}$" ; then
     :
@@ -117,27 +117,7 @@ else
     exit 1
 fi
 
-# 1-4. コマンドライン引数の判定, マニフェストファイル形式判定 
-if [[ "$#" = 1 && -f "$1" ]]; then
-    MNFST=$1
-    TMNF=`cat ${MNFST} | awk -F"\t" '{print NF}'| uniq`
-    CMNF=`cat ${MNFST} | awk -F"," '{print NF}'| uniq`
-    if [[ "${TMNF}" == 2 || "${TMNF}" == 3 ]] && [[ "${CMNF}" != 3 ]] ; then
-        MFMT="tsv"
-    elif [[ "${TMNF}" != 2 && "${TMNF}" != 3 ]] && [[ "${CMNF}" == 3 ]] ; then
-        MFMT="csv"
-    else 
-        echo "[ERROR] The input file must be csv or tsv ." >&2
-        exit 1
-    fi
-
-else 
-    echo "[ERROR] The manifest file, ${1}, not found" >&2
-    print_usg
-    exit 1
-fi
-
-# 1-5. オプション引数の判定
+#   2.2.3. その他オプション引数の判定
 if [[ "${FLG_s}" == "TRUE" && "${FLG_p}" != "TRUE" ]]; then 
     DRCTN="single"
     if [[ -z "$VALUE_l" ]]; then TRUNKL=0; else TRUNKL=${VALUE_l}; fi
@@ -158,20 +138,28 @@ else
 fi
 if [[ -z "$VALUE_c" ]]; then NT=4; else NT=${VALUE_c};fi
 
-# # manifestファイルからpaired/single を判定する。 -> オプション指定に変更
-# DIRECTIONS=(`cat manifest.txt | awk -F"," 'NR>1{print $NF}' | sort | uniq`)
-# if printf '%s\n' "${DIRECTIONS[@]}" | grep -qx "forward"  && \
-#    printf '%s\n' "${DIRECTIONS[@]}" | grep -qx "reverse" ; then 
-#     REND="paired"
-# elif printf '%s\n' "${DIRECTIONS[@]}" | grep -qx "forward"  && \
-#      [[ $(printf '%s\n' "${DIRECTIONS[@]}" | grep -qx "reverse"; echo -n ${?} ) -eq 1 ]]; then
-#     REND="single" 
-# else
-#     echo "[ERROR] The Direction on the manifest file must be 'forward/single' ."
-#     exit 1
-# fi
+# 3. コマンドライン引数の処理
+## マニフェストファイル形式判定 
+if [[ "$#" = 1 && -f "$1" ]]; then
+    MNFST=$1
+    TMNF=`cat ${MNFST} | awk -F"\t" '{print NF}'| uniq`
+    CMNF=`cat ${MNFST} | awk -F"," '{print NF}'| uniq`
+    if [[ "${TMNF}" == 2 || "${TMNF}" == 3 ]] && [[ "${CMNF}" != 3 ]] ; then
+        MFMT="tsv"
+    elif [[ "${TMNF}" != 2 && "${TMNF}" != 3 ]] && [[ "${CMNF}" == 3 ]] ; then
+        MFMT="csv"
+    else 
+        echo "[ERROR] The input file must be csv or tsv ." >&2
+        exit 1
+    fi
 
-# 1-6. プログラムに渡す引数の一覧
+else 
+    echo "[ERROR] The manifest file, ${1}, not found" >&2
+    print_usg
+    exit 1
+fi
+
+# 4. プログラムに渡す引数の一覧
 cat << EOS >&2
 ### Denoising ###
   conda environmental variables :                             [ ${CENV} ]
@@ -186,23 +174,15 @@ cat << EOS >&2
 
 EOS
 
-
-### MAIN ###
-#   2-1. qiime2起動
-#   2-2. fastqインポート& Denoising
-#   2-3. デノイジングのスタッツ, ASV, ASVテーブル をtxtファイルに変換
-#   2-4. デノイジングのスタッツ, ASV, ASVテーブル をqzvファイルに変換
-### 
-
-# 2-1. qiime2起動
+# 5. qiime2パイプライン実行 
+#  5.1. qiime2起動
 source ${CENV}
 if echo ${CENV} | grep -q "anaconda" ; then 
  source activate ${QENV}
  else conda activate ${QENV}
 fi
 
-
-# 2-2. fastqのインポートとデノイジング
+#  5.2. fastqインポート& Denoising
 if [[ "${DRCTN}" == "single" ]]; then
     # input formatの指定
     if [[ "${MFMT}" == "csv" ]]; then 
@@ -269,7 +249,7 @@ elif [[ "${DRCTN}" == "paired" ]]; then
 
 fi
 
-# 2-3. デノイジングのスタッツ, ASV, ASVテーブル をtxtファイルに変換
+#  5.3. デノイジングのスタッツ, ASV, ASVテーブル をtxtファイルに変換
 ## 出力ディレクトリを確認
 OUTD='exported_txt'
 if [[ -d "${OUTD}" ]];then
@@ -290,8 +270,7 @@ qiime tools export --input-path  repset.qza --output-path ${OUTD}
 qiime tools export --input-path table.qza --output-path ${OUTD}
 biom convert -i ./${OUTD}/feature-table.biom -o ./${OUTD}/feature-table.tsv --to-tsv
 
-
-# 2-4. デノイジングのスタッツ, ASV, ASVテーブル をqzvに変換 
+#  5.4. デノイジングのスタッツ, ASV, ASVテーブル をqzvファイルに変換
 ## 出力ディレクトリを確認
 OUTDZ='exported_qzv'
 if [[ -d "${OUTDZ}" ]]; then

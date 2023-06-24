@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION=0.0.230217
+VERSION=0.0.230624
 AUTHOR=SHOGO_KONISHI
 CMDNAME=`basename $0`
 
@@ -48,7 +48,7 @@ EOS
 
 function print_usg(){
 cat << EOS
-Examples:
+ 使用例:
     $CMDNAME -s fqdir    [single-end]
     $CMDNAME -p fqdir    [paired-end]
     $CMDNAME -s -d "\t" -o manifest.tsv fqdir [TSV file output] 
@@ -87,14 +87,15 @@ elif [[ "${FLG_s}" != "TRUE" && "${FLG_p}" == "TRUE" ]]; then
     DRCTN="paired"
 else 
     echo "[ERROR] The optin <-s|-p> is required."
+    print_usg
     exit 1
 fi
 
 # 3. コマンドライン引数の判定
 if [[ "$#" != 1 && ! -d "$1" ]]; then
-    echo "[ERROR] Either the directory is not specified or the directory cannot be found." >&2
-    print_usg
-    exit 1
+  echo "[ERROR] Either the directory is not specified or the directory cannot be found." >&2
+  print_usg
+  exit 1
 fi
 
 # 4. 引数の一覧
