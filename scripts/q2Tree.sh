@@ -253,6 +253,14 @@ else
     mkdir "${OTRE}"
 fi
 
+# qiime phylogeny align-to-tree-mafft-fasttree \
+#   --i-sequences ${repset_tmp} \
+#   --o-alignment aligned-repset.qza \
+#   --o-masked-alignment masked-aligned-repset.qza \
+#   --o-tree unrooted-tree.qza \
+#   --o-rooted-tree rooted-tree.qza \
+#   --p-n-threads auto
+
 ## 4-2. マルチプルアラインメント
 qiime alignment mafft --i-sequences ${repset_tmp} --o-alignment aligned-repset.qza
 if [[ ! -f aligned-repset.qza ]] ; then echo "[ERROR] Failed multiple alignment" ; exit 1 ; fi

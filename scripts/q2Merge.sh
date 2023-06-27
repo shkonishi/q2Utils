@@ -8,6 +8,8 @@ CMDNAME=`basename $0`
 #  1.1. ヘルプの表示 
 #  1.2. 使用例の表示
 # 2. オプション引数の処理
+#  2.1. オプション引数の入力
+#  2.2. オプション引数の判定およびデフォルト値の指定
 # 3. コマンドライン引数の処理
 # 4. プログラムに渡す引数の一覧 
 # 5. qiime2パイプライン実行 
@@ -68,7 +70,7 @@ cat << EOS
 
     CENV=\${HOME}/miniconda3/etc/profile.d/conda.sh
     QENV='qiime2-2021.8'
-    $CMDNAME -e \$CENV -q \$QENV  -t table.qza -s repset.qza taxonomy.qza
+    $CMDNAME -e \$CENV -q \$QENV  -n 3 -o Results -p otu -t table.qza -s repset.qza taxonomy.qza
 
 EOS
 }
@@ -168,7 +170,7 @@ OTXZ=${OUTD}/${PFX}_filtered_tax.qza
 MTT=${OUTD}/${PFX}_merged_cnt.tsv
 
 # 3. コマンドライン引数の処理 
-if [[ $# = 1 ]];then
+if [[ $# = 1 ]] ; then
   TAX=$1
   if [[ ! -f ${TAX} || ${TAX##*.} != 'qza' ]] ; then 
       echo "[ERROR] The taxonomy data ${TAX} does not exist or is not in qza format." ; exit 1
