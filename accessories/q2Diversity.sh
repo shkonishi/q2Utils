@@ -22,7 +22,7 @@ CMDNAME=`basename $0`
 #  5.5. alpha diversity 比較 & クラスカルウォリス検定 [qiime diversity alpha-group-significance]
 #  5.6. Beta diversity [ qiime diversity core-metrics-phylogenetic ]
 #  5.7. Beta-diversity per SampleType [qiime diversity beta-group-significance]
-#  5.8. PCoAスコア及びalpha-diversityをtsvに変換
+#  5.8. PCoAスコアと寄与率、及びalpha-diversityをtsvに変換
 #  5.9. Heatmap
 ###
 
@@ -384,14 +384,20 @@ function unqza_div () {
   PCOUDAT=$TEMP_PCOU/*/data/ordination.txt
   cat $PCOUDAT | awk -F"\n" '/^Site/,/^$/ {print}' \
   | grep -v "^Site" | grep -v "^$" > ${EXPORTD}/unweighted_unifrac_pcoa_results.tsv
+  cat $PCOUDAT | awk -F"\n" '/^Proportion explained/,/^$/' \
+  | grep -v "Proportion explained" | grep -v "^$" > ${EXPORTD}/unweighted_unifrac_pcoa_pe.txt
 
   PCOWDAT=$TEMP_PCOW/*/data/ordination.txt
   cat $PCOWDAT | awk -F"\n" '/^Site/,/^$/ {print}' \
   | grep -v "^Site" | grep -v "^$" > ${EXPORTD}/weighted_unifrac_pcoa_results.tsv
+  cat $PCOWDAT | awk -F"\n" '/^Proportion explained/,/^$/' \
+  | grep -v "Proportion explained" | grep -v "^$" > ${EXPORTD}/weighted_unifrac_pcoa_pe.txt
 
   PCOBDAT=$TEMP_PCOB/*/data/ordination.txt
   cat $PCOBDAT | awk -F"\n" '/^Site/,/^$/ {print}' \
   | grep -v "^Site" | grep -v "^$" > ${EXPORTD}/bray_curtis_pcoa_results.tsv 
+  cat $PCOBDAT | awk -F"\n" '/^Proportion explained/,/^$/' \
+  | grep -v "Proportion explained" | grep -v "^$" > ${EXPORTD}/bray_curtis_pcoa_pe.txt
 
 }
 SHN=${OUTA}/shannon_vector.qza
