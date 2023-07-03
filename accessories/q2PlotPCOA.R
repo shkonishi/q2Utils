@@ -1,6 +1,3 @@
-# NOTE: プロットにテキストラベル
-# NOTE: ggsave(obj, width=7, height=7, units="in")
-
 # 1. 引数処理
 # 2. 引数チェック
 #  2.1. 入力ディレクトリ存在確認
@@ -17,13 +14,16 @@
 #  # PCoA スコアを読み込み、メタデータを結合したDfを作成
 #  # 寄与率データ読み込み、寄与率軸ラベルのリストを作成
 # 4. PCoA結果のプロット
+#  4.1. ggplotオブジェクトのリスト
+#  4.2. All PCoA plot saved in PDF
+
+# NOTE: プロットにテキストラベル
+# NOTE: ggsave(obj, width=7, height=7, units="in")
 
 # 1. 引数処理
 argv <- commandArgs(TRUE)
 in_d <- argv[1] # qza directory
 in_m <- argv[2] # metadata file path
-# in_d <- "~/projects/230217_q2Utils_test/test1_12samples/diversity_qza"
-# in_m <- "~/projects/230217_q2Utils_test/test1_12samples/map.txt"
 
 # 2. 引数チェック
 ## 2.1. 入力ディレクトリ存在確認
@@ -57,7 +57,7 @@ unzip(in_ch1, exdir = "out_ch1")
 unzip(in_sm, exdir = "out_sm")
 
 #  3.2. alpha-diversityデータの読み込み
-print("## import alpha-diversity")
+print("## Import alpha-diversity")
 in_vshn <- paste0(list.files("./out_sh", full.names = T), "/data/alpha-diversity.tsv")
 in_vch1 <- paste0(list.files("./out_ch1", full.names = T), "/data/alpha-diversity.tsv")
 in_vsmp <- paste0(list.files("./out_sm", full.names = T), "/data/alpha-diversity.tsv")
@@ -105,10 +105,14 @@ extCntrb <- function(in_f, st = "^Proportion explained"){
 ### PCoA スコアを読み込み、メタデータを結合したDfを作成
 print("## Merge NMDS score with metadata ")
 in_pcos <- c(in_upco, in_wpco, in_bpco)
+distms <- c("unweighted_unifrac", "weighted_unifrac", "bray_curtis")
 dat_pcou <- lapply(seq_along(in_pcos), function(i){
   pco_score <- extLines(in_pcos[i])
+  distm <- distms[i]
   merge(dat_adiv, pco_score[1:3], by = "SampleID")
 })
+dat_pcou <- setNames(dat_pcou, c("uuni","wuni","bray"))
+
 
 ### 寄与率データ読み込み、寄与率軸ラベルのリストを作成
 pfx <- "PCo" # pfx <- "NMDS"
@@ -120,6 +124,7 @@ dat_cntrb <- lapply(seq_along(in_pcos), function(i){
 })
 
 # 4. PCoA結果のプロット
+#  4.1. ggplotオブジェクトのリスト
 stp <- names(meta)[-1]
 mt <- c("unweighted unifrac", "weighted unifrac", "bray-curtis")
 adiv<- c("shannon","chao1","simpson")
@@ -157,30 +162,36 @@ ggobjs <- lapply(stp, function(x){
     })
 })
 
-# 11. PDF output all plot
-print("## PDF")
+#  4.2. Merged PCoA plot with patchwork
+if("patchwork" %in% rownames(installed.packages()) ) {
+    print("## Merged PCoA plot using patchwork saved in PDF")
+    tmp <- vector("list", length = 3)
+    for(i in seq_along(stp)){
+        tmp[[i]] <- patchwork::wrap_plots(c(ggobjs[[i]][[1]], ggobjs[[i]][[2]], ggobjs[[i]][[3]]), nrow=3 )
+        v <- paste0(out_d, "/", "PCoA_", stp[i], ".pdf")
+        ggsave(v, tmp[[i]], width = 14, height = 9, units = "in")
+    }
+} 
+
+# 4.3. All PCoA plot saved in PDF
+print("## All PCoA plot saved in PDF")
 ad<- c("shannon","chao1","simpson")
 bd<- c("unweighted_unifrac","weighted_unifrac","bray_curtis")
-#out_f <- paste0(out_d,"/", paste0(paste0(rep(bd,each=3),"_", ad), "_", rep(stp, each=9), ".pdf"))
 
 for(i in seq_along(stp)){
-  for(j in seq_along(bd)){
-    for(k in seq_along(ad)){
-      v <- paste0(out_d,"/", paste0(bd[j],"_", ad[k], "_", stp[i],".pdf"))
-      ggsave(v, ggobjs[[i]][[j]][[k]], width = 8, height = 7, units = "in")
-      
+    for(j in seq_along(bd)){
+        for(k in seq_along(ad)){
+            v <- paste0(out_d,"/", paste0(bd[j],"_", ad[k], "_", stp[i],".pdf"))
+            ggsave(v, ggobjs[[i]][[j]][[k]], width = 8, height = 7, units = "in")
+        
+        }
     }
-  }
 }
 
-# str(ggobjs, max.level = 2)
-# # List of 2
-# #  $ :List of 3 # metadata col1
-# #   ..$ :List of 3 # unweighted - shannon, simpson, chao1
-# #   ..$ :List of 3 # weighted
-# #   ..$ :List of 3 # bray
-# #  $ :List of 3  # metadata col2
-# #   ..$ :List of 3
-# #   ..$ :List of 3
-# #   ..$ :List of 3
+# 5. Remove temporary directory
+unlink(out_sh, out_ch1, out_sm, out_upcoa,  out_wpcoa, out_bpcoa, recursive = TRUE)
+
+# Rscriptの中でRmarkdownを呼び出す　# provided test.Rmd is in the working directory
+# rmarkdown::render("test.Rmd")
+
 
