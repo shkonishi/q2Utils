@@ -1,7 +1,7 @@
 #!/bin/bash
-VERSION=0.0.230625
+VERSION=0.0.231025
 AUTHOR=SHOGO_KONISHI
-CMDNAME=`basename $0`
+CMDNAME=$(basename $0)
 
 ### Contents: Merge taxonomy and feature table ###
 # 1. ドキュメント
@@ -40,7 +40,7 @@ cat << EOS
 
 説明:
     このプログラムではqiime2が出力したfeature-table, taxonomy, 及びASV配列を以下のように編集します。
-      - ラベルの変更
+      - ASVのラベル変更
       - feature-table、taxonomy及びASV配列を最大リード数でフィルタリング
       - フィルタリング後のfeature-tableとtaxonomyをマージ
       - 分類階層ごとのカウントテーブルに要約
@@ -74,12 +74,13 @@ cat << EOS
 
 EOS
 }
-if [[ "$#" = 0 ]]; then print_doc; print_usg; exit 1; fi
+# 1.2. エラー
+function print_err () { echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')]:$*" >&2 ;  }
 
 
 # 2. オプション引数の処理
 #  2.1. オプション引数の入力
-while getopts e:q:t:s:n:o:p:h OPT
+while getopts e:q:t:s:n:o:p:uvh OPT
 do
   case $OPT in
     "e" ) CENV="$OPTARG";;
@@ -90,48 +91,43 @@ do
     "o" ) VALUE_o="$OPTARG";;
     "p" ) VALUE_p="$OPTARG";;
     "u" ) FLG_u="TRUE" ;;
-    "h" ) print_doc ; print_usg ; 
-            exit 1 ;; 
-    *) print_doc
-        exit 1;; 
-    \? ) print_doc ; print_usg
-            exit 1 ;;
+    "v" ) echo $VERSION; exit 1 ;;
+    "h" ) print_doc ; print_usg ; exit 1 ;; 
+    *)    print_doc ; exit 1;; 
+    \? )  print_doc ; print_usg ; exit 1 ;;
   esac
 done
-shift `expr $OPTIND - 1`
+shift $(expr $OPTIND - 1)
 
 #  2.2. オプション引数の判定およびデフォルト値の指定
 ## conda環境変数ファイルの存在確認
 if [[ -z "${CENV}" ]]; then CENV="${HOME}/miniconda3/etc/profile.d/conda.sh"; fi
 if [[ ! -f "${CENV}" ]]; then
- echo "[ERROR] The file for the conda environment variable cannot be found. ${CENV}"
+ print_err "[ERROR] The file for the conda environment variable cannot be found. ${CENV}" 
  print_usg
  exit 1
 fi
 ## qiime2環境の存在確認
-if [[ -z "${QENV}" ]]; then QENV="qiime2-2022.8"; fi
+if [[ -z "${QENV}" ]]; then QENV="qiime2-2022.2"; fi
 if conda info --envs | awk '!/^#/{print $1}'| grep -q "^${QENV}$" ; then
-    :
+  :
 else 
-    echo "[ERROR] The conda environment ${QENV} was not found."
-    conda info --envs
-    print_usg
-    exit 1
+  print_err "[ERROR] The conda environment ${QENV} was not found." >&2 
+  conda info --envs
+  print_usg
+  exit 1
 fi
 
 ## ASV配列, feature-tableの判定
-if [[ -z "${VALUE_s}" || -z "${VALUE_t}" ]]; then echo "[ERROR] Both options t/s must be selected."; exit 1 ; fi
+if [[ -z "${VALUE_s}" || -z "${VALUE_t}" ]]; then print_err "[ERROR] Both options t/s must be selected."; exit 1 ; fi
 if [[ -n "${VALUE_s}" && -n "${VALUE_t}" ]]; then
-    SEQ=${VALUE_s} ; TAB=${VALUE_t}
-    if [[ ! -f ${SEQ} || ${SEQ##*.} != 'qza' ]] ; then 
-        echo "[ERROR] The ASV sequence, ${SEQ}, does not exist or is not in qza format." 
-        exit 1
-    fi  
-    if [[ ! -f ${TAB} || ${TAB##*.} != 'qza' ]] ; then 
-        echo "[ERROR] The ASV table ${TAB} does not exist or is not in qza format." 
-        exit 1
-    fi
-
+  SEQ=${VALUE_s} ; TAB=${VALUE_t}
+  if [[ ! -f ${SEQ} || ${SEQ##*.} != 'qza' ]] ; then 
+      print_err "[ERROR] The ASV sequence, ${SEQ}, does not exist or is not in qza format."  ; exit 1
+  fi  
+  if [[ ! -f ${TAB} || ${TAB##*.} != 'qza' ]] ; then 
+      print_err "[ERROR] The ASV table ${TAB} does not exist or is not in qza format." ; exit 1
+  fi
 fi
 
 ## その他オプション引数の判定とデフォルト値
@@ -141,17 +137,17 @@ if [[ -z "${VALUE_n}" ]]; then
 elif [[ -n "${VALUE_n}" && "${VALUE_n}" =~ ^[0-9]+$  ]]; then
   DP=${VALUE_n}
 else 
-  echo -e "[ERROR] ${VALUE_n} is not number"
-  exit 1
+  print_err "[ERROR] ${VALUE_n} is not number" ; exit 1
 fi
 ### Results directory
 if [[ -n "${VALUE_o}" && -d "${VALUE_o}" ]]; then 
-  echo -e "[ERROR] The ${VALUE_o} already exist."; exit 1
+  print_err "[ERROR] The ${VALUE_o} already exist."; exit 1
 elif [[ -n "${VALUE_o}" && ! -d "${VALUE_o}" ]]; then
   OUTD=${VALUE_o}
 elif [[ -z ${VALUE_o} ]]; then
   OUTD='./Results' 
 fi
+
 ## Output files
 if [[ -z "${VALUE_p}" ]];then PFX='otu' ; else PFX=${VALUE_p} ; fi
 OTT=${OUTD}/${PFX}_filtered_cnt.tsv
@@ -170,13 +166,15 @@ OTXZ=${OUTD}/${PFX}_filtered_tax.qza
 MTT=${OUTD}/${PFX}_merged_cnt.tsv
 
 # 3. コマンドライン引数の処理 
-if [[ $# = 1 ]] ; then
+if [[ "$#" = 0 ]]; then 
+  print_doc; print_usg; exit 1 
+elif [[ $# = 1 ]] ; then
   TAX=$1
   if [[ ! -f ${TAX} || ${TAX##*.} != 'qza' ]] ; then 
-      echo "[ERROR] The taxonomy data ${TAX} does not exist or is not in qza format." ; exit 1
-  fi   
+      print_err "[ERROR] The taxonomy data ${TAX} does not exist or is not in qza format." ; exit 1
+  fi
 else
-    echo "[ERROR] Taxonomy data (qza format) is required as a command line argument." ;  print_usg; exit 1
+    print_err "[ERROR] Taxonomy data (qza format) is required as a command line argument." ;  print_usg ; exit 1
 fi
 
 # 4. プログラムに渡す引数の一覧
@@ -204,7 +202,6 @@ cat << EOS >&2
 
   Output merged count table:                [ ${MTT} ]
   
-
 EOS
 
 # 5. 系統組成表の編集
@@ -219,7 +216,7 @@ fi
 # 5.2. 関数定義 
 ## 5.2.1. 関数定義: qzaファイルの展開
 function unqza () {
-  TTAX=$1; TTAB=$2 ; TSEQ=$3
+  local TTAX=$1; local TTAB=$2 ; local TSEQ=$3
   TEMP_TAX=$(mktemp -d)
   TEMP_TAB=$(mktemp -d)
   TEMP_SEQ=$(mktemp -d)
@@ -228,7 +225,7 @@ function unqza () {
   # output directory
   OUTT='exported_txt'; 
   if [[ -d "${OUTT}" ]];then
-      echo "[WARNING] ${OUTT} already exists. The output files may be overwritten." >&2
+      echo -e "[WARNING] ${OUTT} already exists. The output files may be overwritten." >&2
   else 
       mkdir -p "${OUTT}"
   fi
@@ -236,10 +233,10 @@ function unqza () {
   unzip -q ${TTAX} -d $TEMP_TAX
   TAXTSV="${TEMP_TAX}/*/data/taxonomy.tsv"
   if [[ ! -f $(echo $TAXTSV) ]] ; then 
-      echo -e "[ERROR] The specified argument ${TTAX} may not be a taxonomy."
+      echo -e "[ERROR] The specified argument ${TTAX} may not be a taxonomy." >&2
       exit 1 
   else 
-      echo -e "[INFO] The taxonomy data unzipped to temporary directory.  ${TAXTSV}"
+      echo -e "[INFO] The taxonomy data unzipped to temporary directory.  ${TAXTSV}" >&2
       mv ${TAXTSV} ${OUTT}
   fi
 
@@ -248,21 +245,21 @@ function unqza () {
   FTTSV=${TEMP_TAB}/feature-table.tsv
   biom convert -i ${BIOME} -o ${FTTSV} --to-tsv 
   if [[ ! -f $(echo ${BIOME}) ]] ; then
-      echo -e "[ERROR] ${TAB} may not be a feature table. "
+      echo -e "[ERROR] ${TAB} may not be a feature table. " >&2
       exit 1
   else 
-    echo -e "[INFO] The feature table data unzipped to temporary directory.  ${BIOME}"
-    echo -e "[INFO] The feature table data as biom convert to tsv.  ${FTTSV} "
+    echo -e "[INFO] The feature table data unzipped to temporary directory.  ${BIOME}" >&2
+    echo -e "[INFO] The feature table data as biom convert to tsv.  ${FTTSV} " >&2
     mv ${FTTSV} ${OUTT}
   fi  
 
   unzip -q ${TSEQ} -d ${TEMP_SEQ} 
   ASVFA="${TEMP_SEQ}/*/data/dna-sequences.fasta" 
   if [[ ! -f $(echo ${ASVFA}) ]] ; then
-    echo -e "[ERROR] ${SEQ} may not be a ASV fasta. "
+    echo -e "[ERROR] ${SEQ} may not be a ASV fasta. " >&2
     exit 1
   else 
-    echo -e "[INFO] The ASV fasta unzipped to temporary directory.  ${ASVFA}"
+    echo -e "[INFO] The ASV fasta unzipped to temporary directory.  ${ASVFA}" >&2
     mv ${ASVFA} ${OUTT}
   fi 
 
@@ -270,10 +267,10 @@ function unqza () {
 
 # 5.2.2. 関数定義: relabel 
 function relabel () {
-  CNT=$1 ; ASV=$2 ; TAX=$3; RLCNT=$4 ; RLASV=$5; RLTAX=$6
+  local CNT=$1 ; local ASV=$2 ; local TAX=$3; local RLCNT=$4 ; local RLASV=$5; local RLTAX=$6
   # ASVのハッシュ値とOTUの対応表. この段階でASV_IDの同一性の確認は取れているものとする
   cut -f1 ${CNT} | awk 'NR>2{print $1"\t" "OTU" NR-2}' > asv2otu.tsv
-  ls asv2otu.tsv > /dev/null 2>&1 || { echo -e "[ERROR] There is not ASV_ID corresponding table." ; }
+  ls asv2otu.tsv > /dev/null 2>&1 || { echo -e "[ERROR] There is not ASV_ID corresponding table." >&2 ; }
 
   # ラベル置換
   head -2 ${CNT} | tail -1  > ${RLCNT}
@@ -289,8 +286,10 @@ function relabel () {
 
 # 5.2.3. 関数定義: Filter
 function filterOtu () {
-  DP=$1; RLCNT=$2; RLASV=$3; RLTAX=$4
-  PICKCNT=$5; RMCNT=$6; PICKASV=$7;RMASV=$8; PICKTAX=$9; RMTAX=${10}
+  #　リード深度によるフィルタリング, -d 0 [DP=0]を指定した場合、
+  local DP=$1; local RLCNT=$2; local RLASV=$3; local RLTAX=$4
+  local PICKCNT=$5; local RMCNT=$6; local PICKASV=$7; local RMASV=$8; local PICKTAX=$9; local RMTAX=${10}
+
   # echo $DP; echo $CNT; echo $ASV ; echo $TAX 
   # echo $PICKCNT; echo $RMCNT; echo $PICKASV; echo $RMASV; echo $PICKTAX; echo $RMTAX
 
@@ -298,7 +297,7 @@ function filterOtu () {
     ## 最大リード数以下のOTUのIDを取得(ヘッダ行があることに注意)
     PICKOTU=($(cat ${RLCNT} \
     | awk -F"\t" -v DP=${DP} 'NR>1{for(i=2;i<=NF;i++){if(max[NR]==0){max[NR]=$i}else if(max[NR]<$i){max[NR]=$i}};if( max[NR]>DP)print $1;}' ))
-    echo "[INFO] Pick ${#PICKOTU[@]} otu in $((`cat ${RLCNT} | wc -l`-1)) "
+    echo "[INFO] Pick ${#PICKOTU[@]} otu in $(($(cat ${RLCNT} | wc -l)-1)) " >&2
 
     ## フィルターパスしたカウントテーブルと除去したカウントテーブルを別々に保存
     head -1 ${RLCNT} > ${PICKCNT}
@@ -314,7 +313,7 @@ function filterOtu () {
     <( echo ${PICKOTU[@]}|tr ' ' '\n' ) \
     <( awk -F"\t" 'NR>1' ${RLASV} ) 
 
-    ## フィルターパスしたtaxonomyと除去したtaxonomyを別々に保存?
+    ## フィルターパスしたtaxonomyと除去したtaxonomyを別々に保存
     head -1 ${RLTAX} > ${PICKTAX}
     head -1 ${RLTAX} > ${RMTAX}
     awk 'NR==FNR{a[$1]=$1}NR!=FNR{if ($1 in a) print >> "'${PICKTAX}'"; else print >> "'${RMTAX}'"}' \
@@ -331,84 +330,88 @@ function filterOtu () {
 ## 5.2.4. 関数定義: Combine taxonomy and feature-table <stdout>
 function mtax () {
   # NOTE: feature-tableにはコメント行が2行存在、ただし最終行末尾に改行コードがないので行数はtaxonomyと一緒になっている
-  # NOTE: ASV_ID列を削除せずにpasteし、ASV_IDが同一の場合出力したのちにwc -lで確認
+  # NOTE: ただしこのスクリプト内ではlabel変更の再にfeature-tableの1行目(# Constructed from biom file)は消去済み
   # NOTE: taxonomyとfeature-tableをpasteで結合した後にIDが同じことを確認してプリント,ID列をcutで除去
   # NOTE: PR2ではtaxonomy rank が8存在するので場合分けが必要
-  # NOTE: 結果は標準出力なので、ID同一性チェックは関数の外で、行数変わっていないかで確認
+  local TTAX=$1; local TTAB=$2 ; local MTAB=$3
 
-  TTAX=$1; TTAB=$2 
+  # idの同一性チェック
+  id_tab=($(grep -v "^#" ${TTAB} | awk -F"\t" '{print $1}'))
+  id_tax=($(grep -v "^Feature" ${TTAX} | awk -F"\t" '{print $1}'))
+  un1=($(echo ${id_tab[*]} ${id_tax[*]} | tr ' ' '\n' | sort | uniq -u))
+  if [[ ${#un1} != '0' ]]; then echo "[ERROR] The file format of inputs was invalid. $1 and/or $2" >&2 ; fi
+
   # カウントデータからヘッダ行抽出
-  HD=(`grep "^#OTU ID" ${TTAB} | sed 's/^#OTU ID//'`)
-  
-  # taxonomyデータからrankの配列を取り出す (7列もしくは8列の場合がある)
-  RANK=(`cut -f2 $TTAX | awk -F"; " '{if(NF==8){ \
-  sub("_.*","",$1);sub("_.*","",$2);sub("_.*","",$3);sub("_.*","",$4); \
-  sub("_.*","",$5); sub("_.*","",$6);sub("_.*","",$7); sub("_.*","",$8); \
-  print $1" "$2" "$3" "$4" "$5" "$6" "$7" "$8;} \
-  else if(NF==7){sub("_.*","",$1);sub("_.*","",$2);sub("_.*","",$3);sub("_.*","",$4); \
-  sub("_.*","",$5); sub("_.*","",$6);sub("_.*","",$7); print $1" "$2" "$3" "$4" "$5" "$6" "$7;}}' | head -1`)
-
-  # ヘッダ行作成,
-  HDC=(`echo ASV_ID confidence ${RANK[@]} ${HD[@]}`)
-
-  # idの同一性チェック(念の為)
-  id_tab=(`grep -v "^#" ${TTAB} | awk -F"\t" '{print $1}'`)
-  id_tax=(`grep -v "^Feature" ${TTAX} | awk -F"\t" '{print $1}'`)
-  un1=(`echo ${id_tab[*]} ${id_tax[*]} | tr ' ' '\n' | sort | uniq -c | awk '{print $1 }' | uniq`) 
-
-  # Merge 
-  if [[ ${#un1[@]} == 1 && ${un1[@]} == 2 ]]; then
-
-    NC=`cat ${TTAX} | cut -f2 | awk -F"; " '{print NF}' | sort -u | sort -nr | head -1`
-    if [[ ${NC}==7 || ${NC}==8 ]]; then CTCOL=$(($NC+3)); else echo -e "[ERROR]"; exit 1; fi
-
-    # ヘッダ行プリント
-    echo ${HDC[@]} | tr ' ' '\t'
-    # taxonomyとfeature-tableをマージした後、id列除去
-    paste <(cat ${TTAX} | awk -F"\t" 'NR>1{print}' \
-    | awk -F"\t" -v NC=${NC} '{split($2, arr, "; "); \
-    if(NC==8){print $1"\t"$3"\t"arr[1]"\t"arr[2]"\t"arr[3]"\t"arr[4]"\t"arr[5]"\t"arr[6]"\t"arr[7]"\t"arr[8] ;} \
-    else if(NC==7){print $1"\t"$3"\t"arr[1]"\t"arr[2]"\t"arr[3]"\t"arr[4]"\t"arr[5]"\t"arr[6]"\t"arr[7]}}') \
-    <(cat ${TTAB} | awk 'NR>2') \
-    | cut -f1-$(($CTCOL-1)),$(($CTCOL+1))- 
-  else 
-      echo "[ERROR] The file format of inputs was invalid."
+  if head -1 ${TTAB} | grep -e "^# Constructed from biom file$" > /dev/null ; then 
+    HDTAB=($(tail +2 ${TTAB} | head -1 | cut -f2-))
+  elif head -1 ${TTAB} | grep -e "^#OTU ID" > /dev/null ; then 
+    HDTAB=($(grep -e "^#OTU ID" ${TTAB} | head -1 | cut -f2-))
   fi
+
+  # taxonomyデータから分類階層のヘッダ行抽出 (7もしくは8の場合がある, また全てのOTUのrankが7もしくは8階層とは限らない)
+  RANK=($(cut -f2 ${TTAX} | awk -F"; " 'BEGIN{OFS="\t"}NR>1{for(i=1;i<=NF;i++){sub("__.*$", "", $i)};print }' | sort | uniq | tail -1))
+  NRANK=${#RANK[@]}
+  HDC=($(echo 'OTU_ID' 'Confidence' ${RANK[@]} ${HDTAB[@]}))
+
+  # ランク毎のテーブルに整形、未分類のセルには空文字を入れる(そのままだとカラム数が揃わない)
+  if [[ $NRANK == '7' ]]; then
+    echo ${HDC[@]} | tr ' ' '\t' > $MTAB
+    paste <(tail +2 $TTAX | cut -f1,3) \
+    <(tail +2 ${TTAX} | cut -f2 | awk -F"; " -v nrank=$NRANK '{print $1"\t"$2"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7}') \
+    <(grep -v "^#" ${TTAB}) | awk -F"\t" '$1==$10' | cut -f1-9,11- >> $MTAB
+  elif [[ $NRANK == '8' ]]; then
+    echo ${HDC[@]} | tr ' ' '\t'
+    paste <(tail +2 $TTAX | cut -f1,3) \
+    <(tail +2 ${TTAX} | cut -f2 | awk -F"; " -v nrank=$NRANK '{print $1"\t"$2"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7"\t"$8}') \
+    <(grep -v "^#" ${TTAB}) | awk -F"\t" '$1==$11' | cut -f1-10,12- >> $MTAB
+  else 
+    echo -e "[ERROR] The file format of inputs was invalid." >&2
+  fi
+
+  # 出力ファイルチェック
+  out_ncol=($(cat $MTAB | awk -F"\t" '{print NF}' | uniq)) 
+  out_wl=$(cat $MTAB | wc -l); tax_wl=$(cat $TTAX | wc -l) ; tab_wl=$(cat $TTAB | wc -l)
+  if [[ ${#out_ncol[@]} != '1' ]]; then 
+    echo -e "[ERROR] The file format of inputs was invalid."  >&2
+  fi
+  if [[ ${out_wl} != ${tax_wl} || ${out_wl} != ${tab_wl} || ${tax_wl} != ${tab_wl} ]]; then
+    echo -e "[ERROR] The output files format of inputs was invalid." >&2   
+  fi  
+
 }
 ## 5.2.5. 関数定義: Combine taxonomy and ASV <stdout>
 function mtseq () {
-    TTAX=$1; TSEQ=$2; 
+  local TTAX=$1; local TSEQ=$2; local MSEQ=$3
 
-    # taxonomyデータからrankの配列を取り出す (7列もしくは8列の場合がある)
-    RANK=(`cut -f2 $TTAX | awk -F"; " '{if(NF==8){ \
-    sub("_.*","",$1);sub("_.*","",$2);sub("_.*","",$3);sub("_.*","",$4); \
-    sub("_.*","",$5); sub("_.*","",$6);sub("_.*","",$7); sub("_.*","",$8); \
-    print $1" "$2" "$3" "$4" "$5" "$6" "$7" "$8;} \
-    else if(NF==7){sub("_.*","",$1);sub("_.*","",$2);sub("_.*","",$3);sub("_.*","",$4); \
-    sub("_.*","",$5); sub("_.*","",$6);sub("_.*","",$7); print $1" "$2" "$3" "$4" "$5" "$6" "$7;}}' | head -1`)
+  # idの同一性チェック
+  id_seq=($(grep "^>" ${TSEQ} | sed 's/^>//'))
+  id_tax=($(grep -v "^Feature" ${TTAX} | awk -F"\t" '{print $1}'))
+  un1=($(echo ${id_tax[*]} ${id_seq[*]} | tr ' ' '\n' | sort | uniq -u)) 
+  if [[ ${#un1} != '0' ]]; then echo "[ERROR] The file format of inputs was invalid. $1 and/or $2" >&2 ; fi
 
-    # ヘッダ行作成
-    HDC=(`echo ASV_ID confidence ${RANK[@]} Seq`)
+  # taxonomyデータからrankの配列を取り出す (7列もしくは8列の場合がある)
+  RANK=($(cut -f2 ${TTAX} | awk -F"; " 'BEGIN{OFS="\t"}NR>1{for(i=1;i<=NF;i++){sub("__.*$", "", $i)};print }' | sort | uniq | tail -1))
+  NRANK=${#RANK[@]}
 
-    # idの同一性チェック(ファイル結合した後でid列除去しているのでいらないかも)
-    id_tax=(`grep -v "^Feature" ${TTAX} | awk -F"\t" '{print $1}'`)
-    id_seq=(`grep "^>" ${TSEQ} | sed 's/^>//'`)
-    un=(`echo ${id_tax[*]} ${id_seq[*]} | tr ' ' '\n' | sort | uniq -c | awk '{print $1 }' | uniq`)
+  # ヘッダ行生成
+  HDC=($(echo 'OTU_ID' 'Confidence' ${RANK[@]} 'Seq'))
 
-    # taxonomyとASV配列をマージ
-    if [[ ${#un[@]} == 1 && ${un[@]} == 2 ]]; then
-      NC=`cat ${TTAX} | cut -f2 | awk -F"; " '{print NF}' | sort -u | sort -nr | head -1`
-      if [[ ${NC}==7 || ${NC}==8 ]]; then CTCOL=$(($NC+3)); else echo -e "[ERROR]"; exit 1; fi
-      echo ${HDC[@]} | tr ' ' '\t'
-      paste <(cat ${TTAX} | awk -F"\t" 'NR>1{print}' \
-      | awk -F"\t" -v NC=${NC} '{split($2, arr, "; "); \
-      if(NC==8){print $1"\t"$3"\t"arr[1]"\t"arr[2]"\t"arr[3]"\t"arr[4]"\t"arr[5]"\t"arr[6]"\t"arr[7]"\t"arr[8] ;} \
-      else if(NC==7){print $1"\t"$3"\t"arr[1]"\t"arr[2]"\t"arr[3]"\t"arr[4]"\t"arr[5]"\t"arr[6]"\t"arr[7]}}') \
-      <(cat ${TSEQ} | awk 'BEGIN{RS=">"; FS="\n"} NR>1 {print $1"\t"$2;}') \
-      | cut -f1-$(($CTCOL-1)),$(($CTCOL+1))- 
-    else 
-        echo "[ERROR] The input file format was invalid."
-    fi
+  # taxonomyとASV配列をマージ
+  # ランク毎のテーブルに整形、未分類のセルには空文字を入れる(そのままだとカラム数が揃わない)
+  if [[ $NRANK == '7' ]]; then
+    echo ${HDC[@]} | tr ' ' '\t' > $MSEQ
+    paste <(tail +2 $TTAX | cut -f1,3) \
+    <(tail +2 ${TTAX} | cut -f2 | awk -F"; " -v nrank=$NRANK '{print $1"\t"$2"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7}') \
+    <(cat ${TSEQ} | awk 'BEGIN{RS=">"; FS="\n"} NR>1 {print $1"\t"$2;}') | awk -F"\t" '$1==$10' | cut -f1-9,11- >> $MSEQ
+
+  elif [[ $NRANK == '8' ]]; then
+    echo ${HDC[@]} | tr ' ' '\t' > $MSEQ
+    paste <(tail +2 $TTAX | cut -f1,3) \
+    <(tail +2 ${TTAX} | cut -f2 | awk -F"; " -v nrank=$NRANK '{print $1"\t"$2"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7"\t"$8}') \
+    <(cat ${TSEQ} | awk 'BEGIN{RS=">"; FS="\n"} NR>1 {print $1"\t"$2;}') | awk -F"\t" '$1==$11' | cut -f1-10,12- >> $MSEQ
+  else 
+    echo -e "[ERROR] The file format of inputs was invalid." >&2
+  fi      
 
 }
 
@@ -486,7 +489,7 @@ relabel $RLIN1 $RLIN2 $RLIN3 $RLOUT1 $RLOUT2 $RLOUT3
 # 5.6. フィルタリング
 filterOtu $DP $RLOUT1 $RLOUT2 $RLOUT3 ${OTT} ${RTT} ${OTF} ${RTF} ${OTX} ${RTX}
 if ls asv2otu.tsv > /dev/null ; then mv asv2otu.tsv ${OUTD}/. ; fi
-echo "[INFO] Move asv2otu.tsv to ${OUTD} directory."
+echo "[INFO] Move asv2otu.tsv to ${OUTD} directory." >&2
 # cat $OTT | wc -l 
 
 # 5.7. フィルタ後のASV, feature-table, taxonomyをqzaに変換
@@ -503,7 +506,7 @@ biom convert -i $OTT -o $TMPBIOM --to-hdf5
 qiime tools import --input-path ${TMPBIOM} --output-path ${OTTZ} --type 'FeatureTable[Frequency]'
 
 # 5.8. Merge taxonomy and feature-table
-mtax $OTX $OTT > $MTT
+mtax $OTX $OTT $MTT
 
 # 5.9. taxonomy rankごとに集計
 rankCnt $MTT $OUTD

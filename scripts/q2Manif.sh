@@ -64,13 +64,11 @@ do
     "p" ) FLG_p="TRUE" ;;
     "d" ) VALUE_d="$OPTARG" ;;
     "o" ) VALUE_o="$OPTARG" ;;
-    "h" ) print_doc; print_usg
-            exit 1 ;;
-     \? ) print_doc; print_usg
-            exit 1 ;;
+    "h" ) print_doc; print_usg ; exit 1 ;;
+     \? ) print_doc; print_usg ; exit 1 ;;
   esac
 done
-shift `expr $OPTIND - 1`
+shift $(expr $OPTIND - 1)
 
 ## 2-2. オプション引数の判定
 if [[ -n "$VALUE_o" ]]; then OUTPUT=${VALUE_o}; else OUTPUT='manifest.txt'; fi
