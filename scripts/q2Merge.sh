@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION=0.0.231025
+VERSION=0.0.231124
 AUTHOR=SHOGO_KONISHI
 CMDNAME=$(basename $0)
 
@@ -59,11 +59,7 @@ cat << EOS
   -o    出力ディレクトリ名[default: Results]
   -p    出力ファイルプレフィックス[default: otu]
   -h    ヘルプドキュメントの表示
-EOS
-}
-#  1.2. 使用例の表示
-function print_usg() {
-cat << EOS
+
 使用例: 
     $CMDNAME -t table.qza -s repset.qza taxonomy.qza         # ASV及びfeature-tableとtaxonomyを結合
     $CMDNAME -n 3 -t table.qza -s repset.qza taxonomy.qza    # ASV及びfeature-tableのフィルタリング. 最大3カウントのASV除外
@@ -74,6 +70,7 @@ cat << EOS
 
 EOS
 }
+
 # 1.2. エラー
 function print_err () { echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')]:$*" >&2 ;  }
 

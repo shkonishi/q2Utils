@@ -1,7 +1,7 @@
 #!/bin/bash
-VERSION=0.0.230625
+VERSION=0.0.231124
 AUTHOR=SHOGO_KONISHI
-CMDNAME=`basename $0`
+CMDNAME=$(basename $0)
 
 ### Contents: Merge taxonomy and feature table ###
 # 1. ドキュメント
@@ -52,8 +52,10 @@ cat << EOS
   -o    出力ディレクトリ [default: exported_tree]
   -u    系統樹作成の際に、Unassignedタクソンを除外
   -h    ヘルプドキュメントの表示
+
 EOS
 }
+
 #  1.2. 使用例の表示
 function print_usg() {
 cat << EOS
@@ -281,7 +283,6 @@ qiime tools export --input-path rooted-tree.qza --output-path ${OTRE}
 TRE="${OTRE}/tree.nwk"
 id_tax ${TAXTSV} \
 | awk -F"\t" 'NR==FNR{arr[$1]=$2;} NR!=FNR{for (i in arr){gsub(i":", arr[i]":")};  print; }' - ${TRE} > ${XTRE}
-
 
 # # 5.6. 一時ファイルの移動
 mv aligned-repset.qza masked-aligned-repset.qza unrooted-tree.qza rooted-tree.qza ${OTRE}

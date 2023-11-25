@@ -1,7 +1,7 @@
 #!/bin/bash
-VERSION=0.0.230624
+VERSION=0.0.231124
 AUTHOR=SHOGO_KONISHI
-CMDNAME=`basename $0`
+CMDNAME=$(basename $0)
 
 ### <CONTENTS> マニフェストファイル作成 ###
 # 1. ドキュメント
@@ -14,18 +14,18 @@ CMDNAME=`basename $0`
 #  5.1. fastqディレクトリの絶対パスを取得
 #  5.2. ヘッダ行の生成 
 #  5.3. マニフェストファイル作成
-###
+####
 
 # 1. ドキュメント
 function print_doc() {
 cat << EOS
-使用法:
+ 使用法:
     $CMDNAME [options] <fastq_directory>
 
-説明:
+ 説明:
     このスクリプトは、qiime2でfastqデータインポートする際に用いるマニフェストファイルを作成します。
     デフォルトではCSV形式のファイルを作成します。
-    TSVファイルを使用する場合、'qiime tools import' のオプションを以下のように指定する必要があります。
+    TSVファイルを使用する場合、'qiime tools import' のオプションを以下のように指定して実行しています。
     [ --input-format SingleEndFastqManifestPhred33V2 ]
     
     fastqファイルは、以下の拡張子[*.fastq | *.fq | *.fastq.gz | *.fq.gz] で判定されます。
@@ -34,26 +34,22 @@ cat << EOS
 
     # Note: R2ファイルがなくても-pをつけるとペアエンドのmanifestを作ってしまう。-> ファイルの存在確認
     # Note: R2ファイルがあっても-sで実行するとペアの配列を別々の配列と判定される。
-    
 
-オプション:
+ オプション:
   -s  single end
   -p  paired-end
   -d  delimitter[default: , ]
   -o  出力ファイル名 [default: manifest.csv]
   -h  ヘルプドキュメントの表示
 
-EOS
-}
-
-function print_usg(){
-cat << EOS
  使用例:
-    $CMDNAME -s fqdir    [single-end]
-    $CMDNAME -p fqdir    [paired-end]
-    $CMDNAME -s -d "\t" -o manifest.tsv fqdir [TSV file output] 
+    $CMDNAME -s fqdir    # single-end
+    $CMDNAME -p fqdir    # paired-end
+    $CMDNAME -s -d "\t" -o manifest.tsv fqdir  # TSV file output 
+
 EOS
 }
+if [[ "$#" = 0 ]]; then print_doc ; exit 1 ; fi
 
 # 2. オプション引数の処理
 ## 2.1. オプション引数の入力
@@ -64,8 +60,8 @@ do
     "p" ) FLG_p="TRUE" ;;
     "d" ) VALUE_d="$OPTARG" ;;
     "o" ) VALUE_o="$OPTARG" ;;
-    "h" ) print_doc; print_usg ; exit 1 ;;
-     \? ) print_doc; print_usg ; exit 1 ;;
+    "h" ) print_doc; exit 1 ;;
+     \? ) print_doc; exit 1 ;;
   esac
 done
 shift $(expr $OPTIND - 1)
@@ -84,30 +80,28 @@ if [[ "${FLG_s}" == "TRUE" && "${FLG_p}" != "TRUE" ]]; then
 elif [[ "${FLG_s}" != "TRUE" && "${FLG_p}" == "TRUE" ]]; then
     DRCTN="paired"
 else 
-    echo "[ERROR] The optin <-s|-p> is required."
-    print_usg
+    echo "[ERROR] The optin <-s|-p> is required." >&2
     exit 1
 fi
 
 # 3. コマンドライン引数の判定
 if [[ "$#" != 1 && ! -d "$1" ]]; then
   echo "[ERROR] Either the directory is not specified or the directory cannot be found." >&2
-  print_usg
   exit 1
 fi
 
 # 4. 引数の一覧
 cat << EOS >&2
 ### Create a manifest file ###
-  The output file path:        [ ${OUTPUT} ]
-  The delimetter of manifest:  [ ${DIV} ] 
-  Paired or single end:        [ ${DRCTN} ]
+The output file path:        [ ${OUTPUT} ]
+The delimetter of manifest:  [ ${DIV} ] 
+Paired or single end:        [ ${DRCTN} ]
 
 EOS
 
 # 5. メイン
 # 5.1. fastqディレクトリの絶対パスを取得
-FQD=`basename $1`
+FQD=$(basename $1)
 CPFQD=$(cd $(dirname $1) && pwd)/${FQD}
 
 # 5.2. ヘッダ行の生成 (csvの場合ペアエンドは別の行に記載する必要がある)
@@ -126,10 +120,10 @@ if [[ ${FLG_s} == "TRUE" && ${FLG_p} == "TRUE" ]] || [[ -z ${FLG_s} && -z ${FLG_
 
 elif [[ ${FLG_s} == "TRUE" && ${FLG_p} != "TRUE" ]]; then # single end
   ## ファイル名取得
-  FQS=`ls $CPFQD | grep -e ".fastq$" -e ".fastq.gz$" -e ".fq$" -e ".fq.gz$"`
+  FQS=$(ls $CPFQD | grep -e ".fastq$" -e ".fastq.gz$" -e ".fq$" -e ".fq.gz$")
   ## マニフェストファイル作成 
   for r1 in ${FQS[@]} ; do
-    ID=`echo ${r1%.*} | cut -f 1 -d "_"`
+    ID=$(echo ${r1%.*} | cut -f 1 -d "_")
     cpfq_r1=${CPFQD}/${r1}
     if [[ "${DIV}" == "\t" ]];then # tsv
         echo -e ${ID}${DIV}${cpfq_r1} >> ${OUTPUT}
@@ -140,11 +134,11 @@ elif [[ ${FLG_s} == "TRUE" && ${FLG_p} != "TRUE" ]]; then # single end
 
 elif [[ ${FLG_s} != "TRUE" && ${FLG_p} == "TRUE" ]]; then # paired-end
   ## ファイル名取得
-  FQS=(`ls $CPFQD | grep -e "_R1" -e "_1" `) 
+  FQS=($(ls $CPFQD | grep -e "_R1" -e "_1" )) 
   ## マニフェストファイル作成 
   for r1 in ${FQS[@]}; do
-    r2=`echo $r1 | sed -e 's/_R1/_R2/' -e 's/_1\./_2\./' `
-    ID=`echo ${r1%.*} | cut -f 1 -d "_"`
+    r2=$(echo $r1 | sed -e 's/_R1/_R2/' -e 's/_1\./_2\./')
+    ID=$(echo ${r1%.*} | cut -f 1 -d "_")
     cpfq_r1=${CPFQD}/${r1}
     cpfq_r2=${CPFQD}/${r2}
     
@@ -166,3 +160,5 @@ else
     print_doc
     exit 1
 fi
+
+exit 0

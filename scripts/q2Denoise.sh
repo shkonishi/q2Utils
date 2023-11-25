@@ -1,8 +1,7 @@
 #!/bin/bash
-VERSION=0.0.230625
+VERSION=0.0.231124
 AUTHOR=SHOGO_KONISHI
-CMDNAME=`basename $0`
-
+CMDNAME=$(basename $0)
 
 ### <CONTENTS> dada2を用いたデノイジング ###
 # 1. ドキュメント
@@ -18,7 +17,7 @@ CMDNAME=`basename $0`
 #  5.2. fastqインポート& Denoising
 #  5.3. デノイジングのスタッツ, ASV, ASVテーブル をtxtファイルに変換
 #  5.4. デノイジングのスタッツ, ASV, ASVテーブル をqzvファイルに変換
-### 
+###
 
 
 # 1. ドキュメント
@@ -53,25 +52,20 @@ cat << EOS
 
  qiime dada2 denoise-singleにおけるオプション[--p-trunc-len]に与える値
   -l    qualityフィルタリングの結果、この値より短いリードは破棄[default: 0]
-        実際にはこの値のASV以外は捨てられてしまう(バグではないかと思われる)。
-  
-EOS
-}
+        実際にはこの値のASV以外は捨てられてしまう。
 
-#  1.2. 使用例の表示
-function print_usg() {
-cat << EOS >&2
 使用例: 
     $CMDNAME -s manifest.txt    
     $CMDNAME -p manifest.txt
     $CMDNAME -p -F 270 -R 200 manifest.txt
 
     CENV=\${HOME}/miniconda3/etc/profile.d/conda.sh
-    QENV='qiime2-2021.4'
-    $CMDNAME -e \$CENV -q \$QENV -s manifest.txt
-
+    QENV='qiime2-2022.2'
+    $CMDNAME -e \$CENV -q \$QENV -c 6 -s manifest.txt
+  
 EOS
 }
+if [[ "$#" = 0 ]]; then print_doc ; exit 1 ; fi
 
 # 2. オプション引数の処理
 #  2.1. オプション引数の入力
@@ -86,16 +80,12 @@ do
     "F" ) VALUE_F="$OPTARG";;
     "R" ) VALUE_R="$OPTARG";;
     "l" ) VALUE_l="$OPTARG";;
-    
-    "h" ) print_doc
-            exit 1 ;; 
-    *) print_doc
-        exit 1;; 
-     \? ) print_doc
-            exit 1 ;;
+    "h" ) print_doc ; exit 1 ;; 
+    * ) print_doc ; exit 1;; 
+    \? ) print_doc ; exit 1 ;;
   esac
 done
-shift `expr $OPTIND - 1`
+shift $(expr $OPTIND - 1)
 
 #  2.2. オプション引数の判定
 #   2.2.1. conda環境変数ファイルの存在確認
@@ -117,7 +107,7 @@ else
     exit 1
 fi
 
-#   2.2.3. その他オプション引数の判定
+#   2.2.3. その他オプション引数の判定および、デフォルト値の指定
 if [[ "${FLG_s}" == "TRUE" && "${FLG_p}" != "TRUE" ]]; then 
     DRCTN="single"
     if [[ -z "$VALUE_l" ]]; then TRUNKL=0; else TRUNKL=${VALUE_l}; fi
@@ -137,13 +127,17 @@ else
     exit 1
 fi
 if [[ -z "$VALUE_c" ]]; then NT=4; else NT=${VALUE_c};fi
+OUTD='exported_txt'
+if [[ -d "${OUTD}" ]];then echo "[WARNING] ${OUTD} already exists. The output files may be overwritten." >&2 ; fi
+OUTDZ='exported_qzv'
+if [[ -d "${OUTDZ}" ]]; then echo "[WARNING] ${OUTDZ} already exists. The output files may be overwritten." >&2 ; fi
 
 # 3. コマンドライン引数の処理
 ## マニフェストファイル形式判定 
 if [[ "$#" = 1 && -f "$1" ]]; then
     MNFST=$1
-    TMNF=`cat ${MNFST} | awk -F"\t" '{print NF}'| uniq`
-    CMNF=`cat ${MNFST} | awk -F"," '{print NF}'| uniq`
+    TMNF=$(cat ${MNFST} | awk -F"\t" '{print NF}'| uniq)
+    CMNF=$(cat ${MNFST} | awk -F"," '{print NF}'| uniq)
     if [[ "${TMNF}" == 2 || "${TMNF}" == 3 ]] && [[ "${CMNF}" != 3 ]] ; then
         MFMT="tsv"
     elif [[ "${TMNF}" != 2 && "${TMNF}" != 3 ]] && [[ "${CMNF}" == 3 ]] ; then
@@ -162,15 +156,15 @@ fi
 # 4. プログラムに渡す引数の一覧
 cat << EOS >&2
 ### Denoising ###
-  conda environmental variables :                             [ ${CENV} ]
-  qiime2 environment :                                        [ ${QENV} ]
-  Manifest file:                                              [ ${MNFST} ]
-  Format of manifest file :                                   [ ${MFMT} ]
-  Paired/Single end :                                         [ ${DRCTN} ]
-  The position to be truncated at Read1:                      [ ${TRUNKF} ]
-  The position to be truncated at Read2:                      [ ${TRUNKR} ]
-  Reads shorter than this value will be discarded(single).    [ ${TRUNKL} ]
-  Number of threads :                                         [ ${NT} ]
+conda environmental variables                           [ ${CENV} ]
+qiime2 environment                                      [ ${QENV} ]
+Manifest file                                           [ ${MNFST} ]
+Format of manifest file :                               [ ${MFMT} ]
+Paired/Single end :                                     [ ${DRCTN} ]
+The position to be truncated at Read1:                  [ ${TRUNKF} ]
+The position to be truncated at Read2                   [ ${TRUNKR} ]
+Reads shorter than this value will be discarded(single) [ ${TRUNKL} ]
+Number of threads :                                     [ ${NT} ]
 
 EOS
 
@@ -191,24 +185,19 @@ if [[ "${DRCTN}" == "single" ]]; then
         INFMT='SingleEndFastqManifestPhred33V2' 
     fi
 
-    #  qiime tools import 
-    qiime tools import \
-    --type SampleData[SequencesWithQuality] \
-    --input-path ${MNFST} \
-    --output-path seq.qza \
-    --input-format ${INFMT}
+    #  qiime tools import
+    echo "# [CMND] Import fastq files from manifest." >&2
+    cmd1="qiime tools import --type SampleData[SequencesWithQuality] --input-path ${MNFST} --output-path seq.qza --input-format ${INFMT}"
+    echo ${cmd1} >&2 ; eval ${cmd1}
 
     # seq.qza がなければexit
     if [[ ! -f seq.qza ]]; then echo "[ERROR] The seq.qza was not output."; exit 1; fi
 
     # qiime dada2 denoise-
-    qiime dada2 denoise-single \
-    --i-demultiplexed-seqs seq.qza \
-    --p-trunc-len ${TRUNKL} \
-    --o-representative-sequences repset.qza \
-    --o-table table.qza \
-    --p-n-threads ${NT} \
-    --o-denoising-stats denoising-stats.qza
+    echo "# [CMND] Denoising of single end reads." >&2
+    cmd2="qiime dada2 denoise-single --i-demultiplexed-seqs seq.qza --p-trunc-len ${TRUNKL} \
+    --o-representative-sequences repset.qza --o-table table.qza --p-n-threads ${NT} --o-denoising-stats denoising-stats.qza"
+    echo ${cmd2} >&2 ; eval ${cmd2}
 
     ## table.qza がなければexit
     if [[ ! -f table.qza || ! -f denoising-stats.qza ]]; then echo "[ERROR] The table.qza was not created."; exit 1; fi
@@ -224,25 +213,21 @@ elif [[ "${DRCTN}" == "paired" ]]; then
         exit 1
     fi
 
-    #  qiime tools import 
-    qiime tools import \
-    --type SampleData[PairedEndSequencesWithQuality] \
-    --input-path ${MNFST} \
-    --output-path seq.qza \
-    --input-format ${INFMT}
+    #  qiime tools import
+    echo "# [CMND] Import fastq files from manifest." >&2
+    cmd3="qiime tools import --type SampleData[PairedEndSequencesWithQuality] --input-path ${MNFST} --output-path seq.qza --input-format ${INFMT}"
+    echo ${cmd3} >&2 ; eval ${cmd3}
 
     ## seq.qza ができなければexit
     if [[ ! -f seq.qza ]]; then echo "[ERROR] The seq.qza was not output."; exit 1; fi
 
     # qiime dada2 denoise-
-    qiime dada2 denoise-paired \
-    --i-demultiplexed-seqs seq.qza \
-    --p-trunc-len-f ${TRUNKF} \
-    --p-trunc-len-r ${TRUNKR} \
-    --o-representative-sequences repset.qza \
-    --o-table table.qza \
-    --p-n-threads ${NT} \
-    --o-denoising-stats denoising-stats.qza
+    echo "# [CMND] Denoising of paired-end reads." >&2
+    cmd4="qiime dada2 denoise-paired --i-demultiplexed-seqs seq.qza \
+    --p-trunc-len-f ${TRUNKF} --p-trunc-len-r ${TRUNKR} \
+    --o-representative-sequences repset.qza --o-table table.qza \
+    --p-n-threads ${NT} --o-denoising-stats denoising-stats.qza"
+    echo ${cmd4} >&2 ; eval ${cmd4}
 
     ## table.qza がなければexit
     if [[ ! -f table.qza ]]; then echo "[ERROR] The table.qza was not output."; exit 1; fi
@@ -251,55 +236,42 @@ fi
 
 #  5.3. デノイジングのスタッツ, ASV, ASVテーブル をtxtファイルに変換
 ## 出力ディレクトリを確認
-OUTD='exported_txt'
-if [[ -d "${OUTD}" ]];then
-    echo "[WARNING] ${OUTD} already exists. The output files may be overwritten." >&2
-else 
-    mkdir ${OUTD}
-fi
+if [[ ! -d "${OUTD}" ]];then mkdir ${OUTD} ; fi
 
 ## デノイジングのスタッツをTSVに変換
 unzip -q denoising-stats.qza -d ./dnz
 mv ./dnz/*/data/stats.tsv ./${OUTD}/denoise_stats.tsv
 rm -r ./dnz
 
-## ASVをfasta形式に変換 [./${OUTD}/dna-sequences.fasta] 
-qiime tools export --input-path  repset.qza --output-path ${OUTD}
+## ASVをfasta形式に変換 [./${OUTD}/dna-sequences.fasta]
+echo "# [CMND] Export ASV sequence to a fasta file." >&2
+cmd5="qiime tools export --input-path  repset.qza --output-path ${OUTD}"
+echo ${cmd5} >&2 ; eval ${cmd5}
 
 ## ASVテーブルをTSVに変換
-qiime tools export --input-path table.qza --output-path ${OUTD}
-biom convert -i ./${OUTD}/feature-table.biom -o ./${OUTD}/feature-table.tsv --to-tsv
+echo "# [CMND] Export feature-table to a biome file and convert to tsv format." >&2
+cmd6="qiime tools export --input-path table.qza --output-path ${OUTD}"
+cmd7="biom convert -i ./${OUTD}/feature-table.biom -o ./${OUTD}/feature-table.tsv --to-tsv"
+echo ${cmd6} >&2 ; eval ${cmd6}
+echo ${cmd7} >&2 ; eval ${cmd7}
 
 #  5.4. デノイジングのスタッツ, ASV, ASVテーブル をqzvファイルに変換
 ## 出力ディレクトリを確認
-OUTDZ='exported_qzv'
-if [[ -d "${OUTDZ}" ]]; then
-    echo "[WARNING] ${OUTDZ} already exists. The output files may be overwritten." >&2
-else 
-    mkdir ${OUTDZ}
-fi
+if [[ ! -d "${OUTDZ}" ]]; then mkdir ${OUTDZ} ; fi
 
 ## デノイジングのスタッツをqzvに変換
-qiime metadata tabulate \
---m-input-file denoising-stats.qza \
---o-visualization ./${OUTDZ}/denoising-stats.qzv
+echo "# [CMND] Export denoising stats in qzv format." >&2
+cmd8="qiime metadata tabulate --m-input-file denoising-stats.qza --o-visualization ./${OUTDZ}/denoising-stats.qzv"
+echo ${cmd8} >&2 ; eval ${cmd8}
 
 ## 代表配列をqzvに変換
-qiime feature-table tabulate-seqs \
---i-data repset.qza \
---o-visualization ./${OUTDZ}/repset.qzv
+echo "# [CMND] Export ASV sequence in qzv format." >&2
+cmd9="qiime feature-table tabulate-seqs --i-data repset.qza --o-visualization ./${OUTDZ}/repset.qzv"
+echo ${cmd9} >&2 ; eval ${cmd9}
 
 ## ASVテーブルをqzvに変換
-qiime feature-table summarize \
---i-table table.qza \
---o-visualization ./${OUTDZ}/table.qzv
+echo "# [CMND] Export feature-table in qzv format." >&2
+cmd10="qiime feature-table summarize --i-table table.qza --o-visualization ./${OUTDZ}/table.qzv"
+echo ${cmd10} >&2 ; eval ${cmd10}
 
-# qiime2 no stdout ? stderrout ?
-# Imported manifest.txt as PairedEndFastqManifestPhred33 to seq.qza
-# Saved FeatureTable[Frequency] to: table.qza
-# Saved FeatureData[Sequence] to: repset.qza
-# Saved SampleData[DADA2Stats] to: denoising-stats.qza
-# Exported repset.qza as DNASequencesDirectoryFormat to directory exported_txt
-# Exported table.qza as BIOMV210DirFmt to directory exported_txt
-# Saved Visualization to: ./exported_qzv/denoising-stats.qzv
-# Saved Visualization to: ./exported_qzv/repset.qzv
+exit 0

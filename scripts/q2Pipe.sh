@@ -1,7 +1,7 @@
 #!/bin/bash
-VERSION=0.0.230527
+VERSION=0.0.231124
 AUTHOR=SHOGO_KONISHI
-CMDNAME=`basename $0`
+CMDNAME=$(basename $0)
 
 
 ### Contents  ###
@@ -80,15 +80,12 @@ do
     "f" ) VALUE_f="$OPTARG";;
     "x" ) VALUE_x="$OPTARG";;
     "m" ) VALUE_m="$OPTARG";;
-    "h" ) print_doc
-            exit 1 ;; 
-    *) print_doc
-        exit 1;; 
-     \? ) print_doc
-            exit 1 ;;
+    "h" ) print_doc ; exit 1 ;; 
+    *) print_doc ; exit 1 ;; 
+     \? ) print_doc; exit 1 ;;
   esac
 done
-shift `expr $OPTIND - 1`
+shift $(expr $OPTIND - 1)
 
 #  2.2. オプション引数の判定およびデフォルト値の指定
 if [[ -z "$CENV" ]]; then CENV="${HOME}/miniconda3/etc/profile.d/conda.sh"; fi
@@ -146,7 +143,7 @@ if [[ -n "$VALUE_m" ]]; then META=${VALUE_m}; fi
 
 # 3. コマンドライン引数の処理
 if [[ $# = 1 && -d $1 ]]; then
-    FQD=`basename $1`
+    FQD=$(basename $1)
     CPFQD=$(cd $(dirname $1) && pwd)/${FQD}
 else
     echo "[ERROR] Either the directory is not specified or the directory cannot be found." >&2
@@ -157,17 +154,17 @@ fi
 # 4. プログラムに渡す引数の一覧
 cat << EOS >&2
 ### Arguments for this pipe-line ###
- conda environmental variables :         [ ${CENV} ]
- qiime2 environment :                    [ ${QENV} ] 
+ conda environmental variables            [ ${CENV} ]
+ qiime2 environment                       [ ${QENV} ] 
 
- paired/single end :                     [ ${DRCTN} ]
- The position to be truncated at Read1:  [ ${TRUNKF} ]
- The position to be truncated at Read2:  [ ${TRUNKR} ]
+ paired/single end                        [ ${DRCTN} ]
+ The position to be truncated at Read1    [ ${TRUNKF} ]
+ The position to be truncated at Read2    [ ${TRUNKR} ]
 
- Refference classifier for sklearn:  [ ${CLF} ]
- Refference fasta for blast :        [ ${REFA} ]
- Refference taxonomy for blast:      [ ${RETAX} ]
- metadata for drawing bar-plot       [ ${META} ]
+ Refference classifier for sklearn        [ ${CLF} ]
+ Refference fasta for blast               [ ${REFA} ]
+ Refference taxonomy for blast            [ ${RETAX} ]
+ metadata for drawing bar-plot            [ ${META} ]
 
 EOS
 
@@ -211,3 +208,6 @@ q2Merge.sh -e ${CENV} -q ${QENV} -n 3 -o Results -p otu -t table.qza -s repset.q
 
 # 5-4. 代表配列系統樹作成(q2Tree.sh)
 q2Tree.sh -e ${CENV} -q ${QENV} -s Results/otu_filtered_asv.qza  Results/otu_filtered_tax.qza
+
+
+exit 0
