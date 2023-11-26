@@ -3,7 +3,7 @@ VERSION=0.0.231124
 AUTHOR=SHOGO_KONISHI
 CMDNAME=$(basename $0)
 
-### Contents: Merge taxonomy and feature table ###
+### Contents: Run qiime2 pipeline  ###
 # 1. ドキュメント
 #  1.1. ヘルプの表示 
 #  1.2. 使用例の表示
@@ -53,19 +53,14 @@ cat << EOS
   -u    系統樹作成の際に、Unassignedタクソンを除外
   -h    ヘルプドキュメントの表示
 
-EOS
-}
-
-#  1.2. 使用例の表示
-function print_usg() {
-cat << EOS
 使用例:   
     $CMDNAME -s repset.qza taxonomy.qza         # ASV-tree構築 
     $CMDNAME -s repset.qza -u taxonomy.qza      # ASV-treeからUnassigned taxonを除去
 
 EOS
 }
-if [[ "$#" = 0 ]]; then print_doc; print_usg; exit 1; fi
+
+if [[ "$#" = 0 ]]; then print_doc ; exit 1; fi
 
 # 2. オプション引数の処理
 #  2.1. オプション引数の入力
@@ -77,32 +72,27 @@ do
     "s" ) SEQ="$OPTARG";;
     "o" ) OTRE="$OPTARG";;
     "u" ) FLG_u="TRUE" ;;
-    "h" ) print_doc ; print_usg ; 
-            exit 1 ;; 
-    *) print_doc
-        exit 1;; 
-    \? ) print_doc ; print_usg
-            exit 1 ;;
+    "h" ) print_doc ; exit 1 ;; 
+    *) print_doc ; exit 1;; 
+    \? ) print_doc ; exit 1 ;;
   esac
 done
-shift `expr $OPTIND - 1`
+shift $(expr $OPTIND - 1)
 
 #  2.2. オプション引数の判定およびデフォルト値の指定
 ## conda環境変数ファイルの存在確認
 if [[ -z "${CENV}" ]]; then CENV="${HOME}/miniconda3/etc/profile.d/conda.sh"; fi
 if [[ ! -f "${CENV}" ]]; then
  echo "[ERROR] The file for the conda environment variable cannot be found. ${CENV}"
- print_usg
  exit 1
 fi
 ## qiime2環境の存在確認
-if [[ -z "${QENV}" ]]; then QENV="qiime2-2022.8"; fi
+if [[ -z "${QENV}" ]]; then QENV="qiime2-2022.2"; fi
 if conda info --envs | awk '!/^#/{print $1}'| grep -q "^${QENV}$" ; then
     :
 else 
     echo "[ERROR] The conda environment ${QENV} was not found."
     conda info --envs
-    print_usg
     exit 1
 fi
 ## ASV配列の判定
@@ -127,20 +117,20 @@ if [[ $# = 1 ]]; then
   fi   
 else 
   echo "[ERROR] 引数としてtaxonomyデータ(qza形式)が必要です。"
-  print_usg
   exit 1
 fi
 
 # 4. プログラムに渡す引数の一覧
 cat << EOS >&2
-### Merge taxonomy into count data, ASV sequences, and ASV trees ###
-  conda environmental values :        [ ${CENV} ]
-  qiime2 environment :                [ ${QENV} ]
-  The input taxonomy file path:       [ ${TAX} ]
-  The input ASV file path:            [ ${SEQ} ]
-  output directory for phylogeny:     [ ${OTRE} ]
-  output taxonomy tree:               [ ${XTRE} ]
-  Remove Unassigned taxon from tree:  [ ${UAT} ]
+
+###  ###
+conda environmental values :        [ ${CENV} ]
+qiime2 environment :                [ ${QENV} ]
+The input taxonomy file path:       [ ${TAX} ]
+The input ASV file path:            [ ${SEQ} ]
+output directory for phylogeny:     [ ${OTRE} ]
+output taxonomy tree:               [ ${XTRE} ]
+Remove Unassigned taxon from tree:  [ ${UAT} ]
 
 EOS
 

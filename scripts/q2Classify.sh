@@ -175,6 +175,7 @@ fi
 
 # 4. プログラムに渡す引数の一覧
 cat << EOS >&2
+
 ### Taxonomy classification ###
 conda environmental variables       [ ${CENV} ]
 qiime2 environment                  [ ${QENV} ]
@@ -198,7 +199,7 @@ EOS
 source ${CENV}
 if echo ${CENV} | grep -q "anaconda" ; then source activate ${QENV}; else conda activate ${QENV}; fi
 
-## 5.2. qiime feature-lassifierを実行
+## 5.2. qiime feature-classifierを実行
 if [[ -f ${CLF} && ! -f ${REFA} && ! -f ${RETAX} ]]; then
     echo "# [CMND] Execute qiime feature-classifier classify-sklearn" >&2
     cmd1="qiime feature-classifier classify-sklearn --i-classifier ${CLF} --i-reads ${ASV} --p-confidence ${CONF} --o-classification ${OTAX} --p-n-jobs ${NT}"

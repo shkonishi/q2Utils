@@ -44,11 +44,6 @@ cat << EOS
   -m    メタデータのファイル  
   -h    ヘルプドキュメントの表示
 
-EOS
-}
-#  1.2. 使用例の表示
-function print_usg () {
-cat << EOS
 使用例: 
   # All default setting
   $CMDNAME ./fastq_dir
@@ -64,6 +59,7 @@ cat << EOS
 
 EOS
 }
+if [[ "$#" = 0 ]]; then print_doc; exit 1; fi
 
 # 2. オプション引数の処理
 #  2.1. オプション引数の入力
@@ -94,10 +90,9 @@ if [[ -z "$QENV" ]]; then QENV="qiime2-2022.2"; fi
 ## conda環境変数ファイルの存在確認, qiime2環境の存在確認
 if [[ ! -e "${CENV}" ]]; then
  echo "[ERROR] The file for the conda environment variable cannot be found. ${CENV}"
- print_usg
  exit 1
 fi 
-conda info --envs | awk '!/^#/{print $1}'| grep -q "^${QENV}$" || { echo "[ERROR] There is no ${QENV} environment." ; conda info --envs ; print_usg; exit 1 ; } 
+conda info --envs | awk '!/^#/{print $1}'| grep -q "^${QENV}$" || { echo "[ERROR] There is no ${QENV} environment." ; conda info --envs ; exit 1 ; } 
 
 ## リファレンスファイルの判定
 if [[ -n "${Q2DB}" && -n "${VALUE_a}" && -z "${VALUE_f}" && -z "${VALUE_x}" ]] ; then
@@ -147,24 +142,23 @@ if [[ $# = 1 && -d $1 ]]; then
     CPFQD=$(cd $(dirname $1) && pwd)/${FQD}
 else
     echo "[ERROR] Either the directory is not specified or the directory cannot be found." >&2
-    print_usg
     exit 1
 fi
 
 # 4. プログラムに渡す引数の一覧
 cat << EOS >&2
 ### Arguments for this pipe-line ###
- conda environmental variables            [ ${CENV} ]
- qiime2 environment                       [ ${QENV} ] 
+conda environmental variables            [ ${CENV} ]
+qiime2 environment                       [ ${QENV} ] 
 
- paired/single end                        [ ${DRCTN} ]
- The position to be truncated at Read1    [ ${TRUNKF} ]
- The position to be truncated at Read2    [ ${TRUNKR} ]
+paired/single end                        [ ${DRCTN} ]
+The position to be truncated at Read1    [ ${TRUNKF} ]
+The position to be truncated at Read2    [ ${TRUNKR} ]
 
- Refference classifier for sklearn        [ ${CLF} ]
- Refference fasta for blast               [ ${REFA} ]
- Refference taxonomy for blast            [ ${RETAX} ]
- metadata for drawing bar-plot            [ ${META} ]
+Refference classifier for sklearn        [ ${CLF} ]
+Refference fasta for blast               [ ${REFA} ]
+Refference taxonomy for blast            [ ${RETAX} ]
+metadata for drawing bar-plot            [ ${META} ]
 
 EOS
 
@@ -178,7 +172,7 @@ elif [[ "${DRCTN}" = "paired" ]]; then
   q2Manif.sh -p ${CPFQD}
   q2Denoise.sh -e ${CENV} -q ${QENV} -F ${TRUNKF} -R ${TRUNKR} -p manifest.txt
 fi
-# catch error
+# catch error(工事中)
 
 # 5-2. 系統推定実行(q2Classify.sh)
 if [[ -e ${CLF} && ! -e ${REFA} && ! -e ${RETAX} ]] ; then
@@ -201,13 +195,13 @@ else
     echo "[ERROR] Reference data cannot be found. "
     exit 1
 fi
-# catch error
+# catch error(工事中)
 
 # 5-3. 系統組成表作成(q2Merge.sh) 
-q2Merge.sh -e ${CENV} -q ${QENV} -n 3 -o Results -p otu -t table.qza -s repset.qza taxonomy.qza
+q2Merge.sh -e ${CENV} -q ${QENV} -o Results -p otu -t table.qza -s repset.qza -x taxonomy.qza
 
 # 5-4. 代表配列系統樹作成(q2Tree.sh)
-q2Tree.sh -e ${CENV} -q ${QENV} -s Results/otu_filtered_asv.qza  Results/otu_filtered_tax.qza
-
+q2Tree.sh  -e ${CENV} -q ${QENV} -s repset.qza taxonomy.qza 
+# q2Tree.sh -e ${CENV} -q ${QENV} -s Results/otu_filtered_asv.qza  Results/otu_filtered_tax.qza
 
 exit 0
