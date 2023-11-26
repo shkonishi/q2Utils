@@ -1,14 +1,20 @@
 # q2Utils
-qiime2を用いた解析パイプラインを自動化するためのシェルスクリプト。  
+qiime2を用いた解析パイプラインを自動化するためのシェルスクリプト
 プライマー配列を除去済みのfastqファイルを入力とする。
 
 ## Contents
+> scripts
 - `q2Manif.sh` マニフエストファイル作成
 - `q2Denoise.sh` デノイジング 
 - `q2Classify.sh` 系統推定 (classify-sklearn/classify-consensus-blastを選択可)
 - `q2Merge.sh` 系統組成表作成
 - `q2Tree.sh` 代表配列系統樹作成
 - `q2Pipe.sh`  上記の内容を一括で実行
+
+> accessories
+- `q2Diversity.sh` 
+- `q2PlotPCOA.R` 
+- primer配列除去 ペアエンド結合(予定) 
 
 ## Usage
 - conda環境変数ファイルのパスとqiime2のconda環境名を指定することで、異なる解析環境でも実行可
@@ -42,13 +48,13 @@ q2Pipe.sh -e $CNEV -q $QENV -a $REF -f $FST -x $TAX -s ./fastq_dir
 ```
 
 ## Results
-> ASVのハッシュ値をOTUに変換  
+> ASVのハッシュ値をASVに変換  
 
 |ASV_ID|S1|S2|S3|  
 | :--- | :---: | :---: | ---: |  
-| OTU1 | 6 | 0 | 8 |  
-| OTU2 | 29 | 0 | 7 | 
-| OTU3 | 316 | 180 | 54 |
+| ASV1 | 6 | 0 | 8 |  
+| ASV2 | 29 | 0 | 7 | 
+| ASV3 | 316 | 180 | 54 |
   
 ---  
 > taxonomyランク毎に集計したカウントテーブル作成  
@@ -67,7 +73,7 @@ q2Pipe.sh -e $CNEV -q $QENV -a $REF -f $FST -x $TAX -s ./fastq_dir
 
 ```
 ---
-> qiime2に投げたコマンドを標準エラー出力に書き出す
+> qiime2に投げたコマンド一覧を標準エラー出力に書き出し
 ```bash
 q2Denoise.sh -s manifest.txt 2> q2log.txt
 ```
