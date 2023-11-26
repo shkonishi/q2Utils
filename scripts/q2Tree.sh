@@ -123,7 +123,7 @@ fi
 # 4. プログラムに渡す引数の一覧
 cat << EOS >&2
 
-###  ###
+### Create phylogenetic tree from ASV sequences ###
 conda environmental values :        [ ${CENV} ]
 qiime2 environment :                [ ${QENV} ]
 The input taxonomy file path:       [ ${TAX} ]

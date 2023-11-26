@@ -147,6 +147,7 @@ fi
 
 # 4. プログラムに渡す引数の一覧
 cat << EOS >&2
+
 ### Arguments for this pipe-line ###
 conda environmental variables            [ ${CENV} ]
 qiime2 environment                       [ ${QENV} ] 
@@ -198,7 +199,7 @@ fi
 # catch error(工事中)
 
 # 5-3. 系統組成表作成(q2Merge.sh) 
-q2Merge.sh -e ${CENV} -q ${QENV} -o Results -p otu -t table.qza -s repset.qza -x taxonomy.qza
+q2Merge.sh -e ${CENV} -q ${QENV} -t table.qza -s repset.qza -x taxonomy.qza
 
 # 5-4. 代表配列系統樹作成(q2Tree.sh)
 q2Tree.sh  -e ${CENV} -q ${QENV} -s repset.qza taxonomy.qza 
