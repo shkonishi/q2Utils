@@ -144,21 +144,21 @@ if echo ${CENV} | grep -q "anaconda" ; then source activate ${QENV}; else conda 
 function mtax () {
     TTAX=$1; TTAB=$2 
     # カウントデータからヘッダ行抽出
-    HD=(`grep "^#OTU ID" ${TTAB} | sed 's/^#OTU ID//'`)
+    HD=($(grep "^#OTU ID" ${TTAB} | sed 's/^#OTU ID//'))
     # taxonomyデータからrankの配列を取り出す (7列もしくは8列の場合がある)
-    RANK=(`cut -f2 $TTAX | awk -F"; " '{if(NF==8){ \
+    RANK=($(cut -f2 $TTAX | awk -F"; " '{if(NF==8){ \
     sub("_.*","",$1);sub("_.*","",$2);sub("_.*","",$3);sub("_.*","",$4); \
     sub("_.*","",$5); sub("_.*","",$6);sub("_.*","",$7); sub("_.*","",$8); \
     print $1" "$2" "$3" "$4" "$5" "$6" "$7" "$8;} \
     else if(NF==7){sub("_.*","",$1);sub("_.*","",$2);sub("_.*","",$3);sub("_.*","",$4); \
-    sub("_.*","",$5); sub("_.*","",$6);sub("_.*","",$7); print $1" "$2" "$3" "$4" "$5" "$6" "$7;}}' | head -1`)
+    sub("_.*","",$5); sub("_.*","",$6);sub("_.*","",$7); print $1" "$2" "$3" "$4" "$5" "$6" "$7;}}' | head -1))
     # ヘッダ行作成
-    HDC=(`echo ASV_ID confidence ${RANK[@]} ${HD[@]}`)
+    HDC=($(echo ASV_ID confidence ${RANK[@]} ${HD[@]}))
 
     # idの同一性チェック(taxonomyとfeature-tableをマージする場合)
-    id_tab=(`grep -v "^#" ${TTAB} | awk -F"\t" '{print $1}'`)
-    id_tax=(`grep -v "^Feature" ${TTAX} | awk -F"\t" '{print $1}'`)
-    un1=(`echo ${id_tab[*]} ${id_tax[*]} | tr ' ' '\n' | sort | uniq -c | awk '{print $1 }' | uniq`) 
+    id_tab=($(grep -v "^#" ${TTAB} | awk -F"\t" '{print $1}'))
+    id_tax=($(grep -v "^Feature" ${TTAX} | awk -F"\t" '{print $1}'))
+    un1=($(echo ${id_tab[*]} ${id_tax[*]} | tr ' ' '\n' | sort | uniq -c | awk '{print $1 }' | uniq)) 
 
     # Merge 
     if [[ ${#un1[@]} == 1 && ${un1[@]} == 2 ]]; then
@@ -197,20 +197,18 @@ temp_tax=$(mktemp -d)
 temp_seq=$(mktemp -d)
 trap 'rm -rf ${temp_seq} ${temp_tax}' EXIT
 unzip -q ${SEQ} -d ${temp_seq} 
-unzip -q ${TAX} -d $temp_tax
+unzip -q ${TAX} -d ${temp_tax}
 ASVFA="${temp_seq}/*/data/dna-sequences.fasta"
 TAXTSV="${temp_tax}/*/data/taxonomy.tsv"
 
 if [[ ! -f $(echo $TAXTSV) ]] ; then 
-    echo -e "[ERROR] The specified argument ${TAX} may not be a taxonomy."
-    exit 1 
+    echo -e "[ERROR] The specified argument ${TAX} may not be a taxonomy." ; exit 1 
 else 
   echo -e "[INFO] The taxonomy data unzipped to temporary directory.  ${TAXTSV}"
 fi
   
 if [[ ! -f $(echo ${ASVFA}) ]] ; then
-  echo -e "[ERROR] ${SEQ} may not be a ASV fasta. "
-  exit 1
+  echo -e "[ERROR] ${SEQ} may not be a ASV fasta. " ; exit 1
 else 
   echo -e "[INFO] The repset data unzipped to temporary directory.  ${ASVFA}"
 fi
@@ -220,18 +218,21 @@ fi
 ## 5.4.1. ASV配列からUnassignedを除去, 除去したfastaを再びインポート 
 repset_tmp=${temp_seq}/repset_tmp.qza
 if [[ $UAT = "TRUE" ]]; then
-    unid=(`cat ${TAXTSV} | awk -F"\t" '$2~/Unassigned/{print $1}'`)
+    unid=($(cat ${TAXTSV} | awk -F"\t" '$2~/Unassigned/{print $1}'))
 
     if [[ "${#unid[@]}" > 0 ]]; then 
-        echo -e "[INFO] Remove unassigned ASV"
-        echo -e "${unid[@]}" | tr ' ' '\n'
-        faGetrest "${unid[*]}" ${ASVFA} dna-sequences_ast.fasta
-        qiime tools import --input-path dna-sequences_ast.fasta --output-path ${repset_tmp} --type 'FeatureData[Sequence]'
-        echo -e "[INFO] The modified repset created at temporary directory.  ${repset_tmp}"
+      echo -e "[INFO] The following unassigned reads were deleted." >&2
+      echo -e "${unid[@]}" >&2
+      faGetrest "${unid[*]}" ${ASVFA} dna-sequences_ast.fasta
+
+      echo "# [CMND] The modified repset created at temporary directory.  ${repset_tmp}" >&2
+      cmd1="qiime tools import --input-path dna-sequences_ast.fasta --output-path ${repset_tmp} --type 'FeatureData[Sequence]'"
+      echo ${cmd1} >&2 ; eval ${cmd1}
+
     else 
-        echo "# Unassigne ASV does not exist."
-        qiime tools import --input-path ${ASVFA} --output-path ${repset_tmp} --type 'FeatureData[Sequence]'
-        echo -e "[INFO] The modified repset created at temporary directory.  ${repset_tmp}"
+      echo "# [CMND] Unassigne ASV does not exist, and the repset re-imported at temporary directory.  ${repset_tmp}" >&2 
+      cmd1="qiime tools import --input-path ${ASVFA} --output-path ${repset_tmp} --type 'FeatureData[Sequence]'"
+      echo ${cmd1} >&2 ; eval ${cmd1}
     fi
 else
     echo  
@@ -254,21 +255,27 @@ fi
 #   --p-n-threads auto
 
 ## 4-2. マルチプルアラインメント
-qiime alignment mafft --i-sequences ${repset_tmp} --o-alignment aligned-repset.qza
+echo "# [CMND] qiime alignment mafft " >&2         
+cmd2="qiime alignment mafft --i-sequences ${repset_tmp} --o-alignment aligned-repset.qza"
+echo ${cmd2} >&2 ; eval ${cmd2}
 if [[ ! -f aligned-repset.qza ]] ; then echo "[ERROR] Failed multiple alignment" ; exit 1 ; fi
 
 ## 4-3. アライメントのマスク
-qiime alignment mask --i-alignment aligned-repset.qza --o-masked-alignment masked-aligned-repset.qza
-
+echo "# [CMND] qiime alignment mask." >&2  
+cmd3="qiime alignment mask --i-alignment aligned-repset.qza --o-masked-alignment masked-aligned-repset.qza"
+echo ${cmd3} >&2 ; eval ${cmd3}
 ## 4-4. 無根系統樹作成
-qiime phylogeny fasttree --i-alignment masked-aligned-repset.qza --o-tree unrooted-tree.qza
-
+echo "# [CMND] qiime phylogeny fasttree " >&2  
+cmd4="qiime phylogeny fasttree --i-alignment masked-aligned-repset.qza --o-tree unrooted-tree.qza"
+echo ${cmd4} >&2 ; eval ${cmd4}
 ## 4-5. Midpoint root 
-qiime phylogeny midpoint-root --i-tree unrooted-tree.qza --o-rooted-tree rooted-tree.qza
-
+echo "# [CMND] Midpoint root" >&2  
+cmd5="qiime phylogeny midpoint-root --i-tree unrooted-tree.qza --o-rooted-tree rooted-tree.qza"
+echo ${cmd5} >&2 ; eval ${cmd5}
 ## 4-6. Export tree as newick format and modify nodes of the tree.
-qiime tools export --input-path rooted-tree.qza --output-path ${OTRE}
-
+echo "# [CMND] Export tree as newick format and modify nodes of the tree." >&2  
+cmd6="qiime tools export --input-path rooted-tree.qza --output-path ${OTRE}"
+echo ${cmd6} >&2 ; eval ${cmd6}
 ## 4-7. Modify nodes of the newick tree.
 TRE="${OTRE}/tree.nwk"
 id_tax ${TAXTSV} \

@@ -92,20 +92,12 @@ shift $(expr $OPTIND - 1)
 if [[ -z "$VALUE_e" ]]; then CENV="${HOME}/miniconda3/etc/profile.d/conda.sh"; else CENV=${VALUE_e}; fi
 if [[ ! -f "${CENV}" ]]; then
  echo "[ERROR] The file for the conda environment variable cannot be found. ${CENV}" >&2
- print_usg
  exit 1
 fi
 
 #   2.2.2. qiime2環境の存在確認
 if [[ -z "$VALUE_q" ]]; then QENV="qiime2-2022.2"; else QENV=${VALUE_q}; fi
-if conda info --envs | awk '!/^#/{print $1}'| grep -q "^${QENV}$" ; then
-    :
-else 
-    echo "[ERROR] There is no ${QENV} environment." >&2
-    conda info --envs
-    print_usg
-    exit 1
-fi
+conda info --env | grep -q $QENV || { echo "[ERROR] There is no ${QENV} environment."  >&2 ; conda info --envs >&2 ; exit 1 ; }
 
 #   2.2.3. その他オプション引数の判定および、デフォルト値の指定
 if [[ "${FLG_s}" == "TRUE" && "${FLG_p}" != "TRUE" ]]; then 
@@ -149,7 +141,6 @@ if [[ "$#" = 1 && -f "$1" ]]; then
 
 else 
     echo "[ERROR] The manifest file, ${1}, not found" >&2
-    print_usg
     exit 1
 fi
 
