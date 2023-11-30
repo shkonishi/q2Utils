@@ -202,7 +202,7 @@ fi
 q2Merge.sh -e ${CENV} -q ${QENV} -t table.qza -s repset.qza -x taxonomy.qza
 
 # 5-4. 代表配列系統樹作成(q2Tree.sh)
-q2Tree.sh  -e ${CENV} -q ${QENV} -s repset.qza taxonomy.qza 
+q2Tree.sh  -e ${CENV} -q ${QENV} -s repset.qza -t taxonomy.qza 
 # q2Tree.sh -e ${CENV} -q ${QENV} -s Results/otu_filtered_asv.qza  Results/otu_filtered_tax.qza
 
 exit 0

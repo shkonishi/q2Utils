@@ -35,7 +35,7 @@ cat << EOS
 
 説明:
     このプログラムはqiime2が出力したASV配列とtaxonomyデータから、
-    ノードラベルをtaxonomic-nameに変換したASV配列の系統樹を作成します。
+    ノードラベルをtaxonomic-nameに変換した系統樹を作成します。
     uオプションを指定することで、系統アサインされなかったASVは除去できます。
     qiime2の出力するnewick形式のASVツリーでは、各ノードがASVのハッシュ値となっているため
     taxonomyデータを基にしてnewickツリーのノードラベルをtaxonomic-nameに変換します。
@@ -48,14 +48,15 @@ cat << EOS
 オプション: 
   -e    conda環境変数パス[default: ${HOME}/miniconda3/etc/profile.d/conda.sh ]
   -q    qiime2環境名[default: qiime2-2021.8 ]
-  -s    ASV配列 [default: repset.qza]
+  -s    ASV配列 (qza形式)
+  -t    taxonomy (qza形式)
   -o    出力ディレクトリ [default: exported_tree]
   -u    系統樹作成の際に、Unassignedタクソンを除外
   -h    ヘルプドキュメントの表示
 
 使用例:   
-    $CMDNAME -s repset.qza taxonomy.qza         # ASV-tree構築 
-    $CMDNAME -s repset.qza -u taxonomy.qza      # ASV-treeからUnassigned taxonを除去
+    $CMDNAME -s repset.qza -t taxonomy.qza        # ASV-tree構築 
+    $CMDNAME -u -s repset.qza -ttaxonomy.qza      # ASV-treeからUnassigned taxonを除去
 
 EOS
 }
@@ -64,12 +65,13 @@ if [[ "$#" = 0 ]]; then print_doc ; exit 1; fi
 
 # 2. オプション引数の処理
 #  2.1. オプション引数の入力
-while getopts e:q:s:o:uh OPT
+while getopts e:q:s:t:o:uh OPT
 do
   case $OPT in
     "e" ) CENV="$OPTARG";;
     "q" ) QENV="$OPTARG";;
     "s" ) SEQ="$OPTARG";;
+    "t" ) TAX="$OPTARG";;
     "o" ) OTRE="$OPTARG";;
     "u" ) FLG_u="TRUE" ;;
     "h" ) print_doc ; exit 1 ;; 
@@ -91,16 +93,21 @@ if [[ -z "${QENV}" ]]; then QENV="qiime2-2022.2"; fi
 if conda info --envs | awk '!/^#/{print $1}'| grep -q "^${QENV}$" ; then
     :
 else 
-    echo "[ERROR] The conda environment ${QENV} was not found."
+    echo "[ERROR] The conda environment ${QENV} was not found." >&2
     conda info --envs
     exit 1
 fi
 ## ASV配列の判定
-if [[ -z "${SEQ}" ]]; then echo "[ERROR] The options [-s] must be required."; exit 1 ; fi
+if [[ -z "${SEQ}" ]]; then echo "[ERROR] The option [-s] must be required."; exit 1 ; fi
 if [[ ! -f ${SEQ} || ${SEQ##*.} != 'qza' ]] ; then 
-  echo "[ERROR] The ASV sequence, ${SEQ}, does not exist or is not in qza format." 
+  echo "[ERROR] The ASV sequence, ${SEQ}, does not exist or is not in qza format." >&2 ; exit 1
   exit 1
 fi
+## taxonomyファイルの判定
+if [[ -z "${TAX}" ]]; then echo "[ERROR] The option [-t] must be required."; exit 1 ; fi
+if [[ ! -f ${TAX} || ${TAX##*.} != 'qza' ]] ; then 
+  echo "[ERROR] The taxonomy data ${TAX} does not exist or is not in qza format." >&2 ; exit 1
+fi   
 
 ## 出力ファイル名
 ## その他オプション引数の判定 
@@ -109,16 +116,6 @@ XTRE="${OTRE}/taxonomy.nwk"
 if [[ "${FLG_u}" = "TRUE" ]]; then UAT="TRUE" ; else UAT="FALSE" ; fi
 
 
-# 3. コマンドライン引数の処理 
-if [[ $# = 1 ]]; then 
-  TAX=$1
-  if [[ ! -f ${TAX} || ${TAX##*.} != 'qza' ]] ; then 
-    echo "[ERROR] The taxonomy data ${TAX} does not exist or is not in qza format." ; exit 1
-  fi   
-else 
-  echo "[ERROR] 引数としてtaxonomyデータ(qza形式)が必要です。"
-  exit 1
-fi
 
 # 4. プログラムに渡す引数の一覧
 cat << EOS >&2
@@ -284,3 +281,4 @@ id_tax ${TAXTSV} \
 # # 5.6. 一時ファイルの移動
 mv aligned-repset.qza masked-aligned-repset.qza unrooted-tree.qza rooted-tree.qza ${OTRE}
 
+exit 0

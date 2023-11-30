@@ -146,7 +146,6 @@ cat << EOS >&2
 ### Merge taxonomy into count data, ASV sequences, and ASV trees ###
 conda environmental values :              [ ${CENV} ]
 qiime2 environment :                      [ ${QENV} ]
-
 Input taxonomy file path(qza):            [ ${TAX} ]
 Input ASV table file path(qza):           [ ${TAB} ]
 Input ASV file path(qza):                 [ ${SEQ} ]
@@ -165,7 +164,6 @@ Output filtered taxonomy table(qza):      [ ${OTXZ} ]
 Output re-labeled count table:            [ ${OTT} ]
 Output re-labeled ASV sequence fasta:     [ ${OTFA} ]
 Output re-labeled taxonomy table:         [ ${OTX} ]
-
 Output merged count table:                [ ${MTT} ]
 
 EOS

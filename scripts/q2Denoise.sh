@@ -146,6 +146,7 @@ fi
 
 # 4. プログラムに渡す引数の一覧
 cat << EOS >&2
+
 ### Denoising ###
 conda environmental variables                           [ ${CENV} ]
 qiime2 environment                                      [ ${QENV} ]

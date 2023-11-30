@@ -74,7 +74,7 @@ cat << EOS
     # デフォルト設定とは異なる環境で実行する場合、conda環境変数のスクリプトと、qiime2の環境名を指定する
     CENV=/home/miniconda3/etc/profile.d/conda.sh
     Q2ENV=qiime2-2022.2
-    $CMDNAME -a silva-138-99-nb-classifier.qza -e \${CENV} -q \${Q2ENV} repset.qza table.qza
+    $CMDNAME -e \${CENV} -q \${Q2ENV} -a silva-138-99-nb-classifier.qza repset.qza table.qza
 
 EOS
 }
