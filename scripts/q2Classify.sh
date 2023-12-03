@@ -246,7 +246,7 @@ elif [[ -f ${TAB} && -f ${OTAX} && ! -f ${META} ]] ; then
     cmd3="qiime taxa barplot --i-table ${TAB} --i-taxonomy ${OTAX} --o-visualization ${OUTDZ}/${OBP}"
     echo ${cmd3} >&2 ; eval ${cmd3}
 else
-    echo "[ERROR] ${TAB}, ${OTAX} : One of these is missing."
+    echo "[ERROR] ${TAB}, ${OTAX} : One of these is missing." >&2
     exit 1
 fi
 
