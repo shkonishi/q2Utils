@@ -140,6 +140,8 @@ RTFA=${OUTD}/${PFX}_relabel_asv.fasta
 RTX=${OUTD}/${PFX}_relabel_tax.tsv
 MTT=${OUTD}/${PFX}_merged_cnt.tsv
 
+# 3. コマンドライン引数の処理
+
 # 4. プログラムに渡す引数の一覧
 cat << EOS >&2
 

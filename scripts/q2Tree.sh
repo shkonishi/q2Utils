@@ -25,7 +25,7 @@ CMDNAME=$(basename $0)
 function print_doc() {
 cat << EOS
 使用法:
-    $CMDNAME [オプション] <taxonomy.qza> 
+    $CMDNAME [オプション] 
 
 用語の定義およびこのプログラム中で使用されるデフォルトファイル名:
     ASV配列     Denoisingされた配列 [repset.qza]
@@ -47,7 +47,7 @@ cat << EOS
 
 オプション: 
   -e    conda環境変数パス[default: ${HOME}/miniconda3/etc/profile.d/conda.sh ]
-  -q    qiime2環境名[default: qiime2-2021.8 ]
+  -q    qiime2環境名[default: qiime2-2022.2 ]
   -s    ASV配列 (qza形式)
   -t    taxonomy (qza形式)
   -o    出力ディレクトリ [default: exported_tree]
@@ -56,7 +56,7 @@ cat << EOS
 
 使用例:   
     $CMDNAME -s repset.qza -t taxonomy.qza        # ASV-tree構築 
-    $CMDNAME -u -s repset.qza -ttaxonomy.qza      # ASV-treeからUnassigned taxonを除去
+    $CMDNAME -u -s repset.qza -t taxonomy.qza     # ASV-treeからUnassigned taxonを除去
 
 EOS
 }
@@ -139,7 +139,7 @@ if echo ${CENV} | grep -q "anaconda" ; then source activate ${QENV}; else conda 
 # 5.2. 関数定義 
 ## 5.2.1 関数定義, feature-tableとtaxonomyデータとASV配列を結合
 function mtax () {
-    TTAX=$1; TTAB=$2 
+    local TTAX=$1; local TTAB=$2 
     # カウントデータからヘッダ行抽出
     HD=($(grep "^#OTU ID" ${TTAB} | sed 's/^#OTU ID//'))
     # taxonomyデータからrankの配列を取り出す (7列もしくは8列の場合がある)
@@ -179,7 +179,7 @@ function id_tax () {
 }
 ## 5.2.4 関数定義, fastaファイルから指定idの配列除外
 function faGetrest (){
-  id=(${1}); fa=$2; rest=$3
+  local id=(${1}); local fa=$2; local rest=$3
   cat ${fa} \
   | awk '/^>/ { print n $0; n = "" }!/^>/ { printf "%s", $0; n = "\n" } END{ printf "%s", n }' \
   | awk 'BEGIN{RS=">"; FS="\n"} NR>1 {print $1"\t"$2;}' \

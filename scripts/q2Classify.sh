@@ -26,13 +26,13 @@ cat << EOS
 
 用語の定義およびこのプログラム中で使用されるデフォルトファイル名:
     ASV                 Denoisingされた配列. dada2の出力 [repset.qza]
-    ASVテーブル         検体に含まれるASVの存在量. dada2の出力 [table.qza]
+    feature-table       検体に含まれるASVの存在量. dada2の出力 [table.qza]
     taxonomyテーブル    ASVの系統推定結果. qiime feature-classifierの出力 [taxonomy.qza]
-    系統組成表          taxonomyテーブルとASVテーブルを結合したもの [taxtab.txt]
+    系統組成表          taxonomyテーブルとfeature-tableを結合したもの [taxtab.txt]
 
 説明:
     このプログラムはqiime2を用いてASVの系統推定を実施します。
-    入力ファイルとして、dada2を用いたdenoising後のASVファイル(qza形式)とASVテーブル(qza形式)を指定します。
+    入力ファイルとして、dada2を用いたdenoising後のASVファイル(qza形式)とfeature-table(qza形式)を指定します。
 
     系統推定手法はsklearn/blastいずれかが選択されます(vsearchはdenoisingのプロセスが異なるので含めていません)。
     分類機を指定するか([-a]オプションで指定)、リファレンス配列および系統データ([-f],[-x]オプションで指定)を指定するかで、
@@ -42,7 +42,7 @@ cat << EOS
     リファレンス配列ファイルと、それに対応するtaxonomyデータのファイルは、いずれもqzaでインポートしたものを指定します。
     分類機およびリファレンスデータファイルはファイルパスで指定するか、環境変数'Q2DB'を指定しておけばファイル名で指定できます。
 
-    結果として得られたtaxonomyテーブルとASVテーブル(qza形式)を用いて、
+    結果として得られたtaxonomyテーブルとfeature-table(qza形式)を用いて、
     系統組成の棒グラフ(qzv形式)を作成します。その際オプションとしてメタデータのファイル[default:map.txt]を指定することができます。
 
     デフォルトの出力ファイル名は以下のようになっています。
@@ -56,25 +56,27 @@ cat << EOS
   -a    分類機(qza形式)                                 [sklearn使用時]
   -f    リファレンスfasta(qza形式)                      [blast使用時]
   -x    リファレンスfastaと対応する系統データ(qza形式)  [blast使用時]
+  -s    ASV(qza形式)
+  -t    feature-table(qza形式)
   -n    confidence                                      [default of qiime:0.7 ]
   -m    メタデータのファイル
-  -o    ASVテーブル(qza形式)                            [default: taxonomy.qza]
-  -O    ASVテーブル(tsv形式)                            [default: taxonomy.tsv]
+  -o    taxonomy(qza形式)                               [default: taxonomy.qza]
+  -O    taxonomy(tsv形式)                               [default: taxonomy.tsv]
   -b    棒グラフの出力(qzv形式)                         [default: taxa-barplot.qzv]
-  -c    CPU                                             [default: 4]
+  -c    CPU                                             [sklearn使用時, default: 4]
   -h    ヘルプドキュメントの表示
 
 使用例:
     # sklearn
-    $CMDNAME -a silva-138-99-nb-classifier.qza repset.qza table.qza
+    $CMDNAME -a silva-138-99-nb-classifier.qza -s repset.qza -t table.qza
 
     # blast
-    $CMDNAME -f silva-138-99-seqs.qza -x silva-138-99-tax.qza repset.qza table.qza
+    $CMDNAME -f silva-138-99-seqs.qza -x silva-138-99-tax.qza -s repset.qza -t table.qza
 
     # デフォルト設定とは異なる環境で実行する場合、conda環境変数のスクリプトと、qiime2の環境名を指定する
     CENV=/home/miniconda3/etc/profile.d/conda.sh
     Q2ENV=qiime2-2022.2
-    $CMDNAME -e \${CENV} -q \${Q2ENV} -a silva-138-99-nb-classifier.qza repset.qza table.qza
+    $CMDNAME -e \${CENV} -q \${Q2ENV} -a silva-138-99-nb-classifier.qza -s repset.qza -t table.qza
 
 EOS
 }
@@ -82,17 +84,19 @@ if [[ $# = 0 ]]; then print_doc; exit 1; fi
 
 # 2. オプション引数の処理
 ##  2.1. オプション引数の入力
-while getopts e:q:c:a:f:x:n:m:o:b:O:h OPT
+while getopts e:q:a:f:x:t:s:n:m:c:o:b:O:h OPT
 do
   case $OPT in
     "e" ) CENV="$OPTARG";;
     "q" ) QENV="$OPTARG";;
-    "c" ) NT="$OPTARG";;
     "a" ) VALUE_a="$OPTARG";;
     "f" ) VALUE_f="$OPTARG";;
     "x" ) VALUE_x="$OPTARG";;
+    "t" ) TAB="$OPTARG";;
+    "s" ) ASV="$OPTARG";;
     "n" ) CONF="$OPTARG";;
     "m" ) META="$OPTARG";;
+    "c" ) NT="$OPTARG";;
     "o" ) OTAX="$OPTARG";;
     "b" ) OBP="$OPTARG";;
     "O" ) OTT="$OPTARG";;
@@ -143,7 +147,7 @@ elif [[ ! -e ${CLF} && -e ${REFA} && -e ${RETAX} ]] ; then
     echo "[INFO] ${REFA} & ${RETAX} were exists."
 else
     echo -e "[ERROR] The reference file not found. "
-    echo -e "Please specify classifier (qza format) or sequence/taxonomy data (qza format) as reference data."
+    echo -e "Please specify classifier (qza format) or ASVuence/taxonomy data (qza format) as reference data."
     echo -e "The environment variable Q2DB can be set to specify the file name only."
     echo -e "[e.g.]  export Q2DB=/home/db/qiime2_db "
     if [[ -d ${Q2DB} ]] ; then echo -e "### The following files exist in ${Q2DB}."; ls -1 ${Q2DB}| grep "qza$" ; fi
@@ -151,27 +155,23 @@ else
 fi
 
 ### 2.2.5. その他のオプション引数の判定
+## ASV配列, feature-tableの判定
+if [[ -z "${ASV}" || -z "${TAB}"  ]]; then echo "[ERROR] All options t/s/x must be selected." >&2 ; exit 1 ; fi
+if [[ ! -f ${ASV} || ${ASV##*.} != 'qza' ]] ; then echo "[ERROR] The ASV sequence, ${ASV}, does not exist or is not in qza format." >&2 ; exit 1 ; fi
+if [[ ! -f ${TAB} || ${TAB##*.} != 'qza' ]] ; then echo "[ERROR] The feature-table ${TAB} does not exist or is not in qza format." >&2 ; exit 1 ; fi
 if [[ -z "$CONF" ]]; then CONF=0.7 ; fi
 if [[ -z "$OTAX" ]]; then OTAX='taxonomy.qza' ; fi
 if [[ -f "$OTAX" ]] ; then echo "[ERROR] The ${OTAX} was aleady exist." >&2 ; exit 1; fi
 if [[ -z "$OBP" ]]; then OBP='taxa-barplot.qzv' ; fi
 if [[ -z "$OTT" ]]; then OTT='taxonomy.tsv' ; fi
-if [[ -z "$META" ]]; then META='map.txt' ; fi
+if [[ -n "$META" && ! -f "$META" ]]; then echo "[ERROR] The ${META} does not exist." >&2 ; exit 1; fi
 if [[ -z "$NT" ]]; then NT=4 ; fi
 OUTDZ='exported_qzv'
-if [[ -d "${OUTDZ}" ]]; then echo "[WARNING] ${OUTDZ} was already exists. The output files may be overwritten." >&2 ; fi
+if [[ -d "${OUTDZ}" ]]; then echo "[WARNING] ${OUTDZ} was already exists. The output files may be overwritten." ; fi
 OUTD='exported_txt'; 
-if [[ -d "${OUTD}" ]];then echo "[WARNING] ${OUTD} already exists. The output files may be overwritten." >&2 ; fi
+if [[ -d "${OUTD}" ]];then echo "[WARNING] ${OUTD} already exists. The output files may be overwritten." ; fi
 
 # 3. コマンドライン引数の処理
-if [[ $# = 2 && -f "$1" && -f "$2" ]]; then
-    ASV=$1
-    TAB=$2
-else
-    echo "[ERROR] Two qza files are required as arguments. " >&2
-    echo "[ERROR] The first is the ASV and the second is the feature table. " >&2
-    exit 1
-fi
 
 # 4. プログラムに渡す引数の一覧
 cat << EOS >&2
@@ -181,7 +181,7 @@ conda environmental variables       [ ${CENV} ]
 qiime2 environment                  [ ${QENV} ]
 number of threads                   [ ${NT} ]
 The input ASV file path             [ ${ASV} ]
-The input ASV table file path       [ ${TAB} ]
+The input feature-table file path   [ ${TAB} ]
 Refference classifier for sklearn   [ ${CLF} ]
 confidence value for sklearn        [ ${CONF} ]
 Refference fasta for blast          [ ${REFA} ]

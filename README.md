@@ -1,6 +1,6 @@
 # q2Utils
 qiime2を用いた解析パイプラインを自動化するためのシェルスクリプト
-プライマー配列を除去済みのfastqファイルを入力とする。
+プライマー配列除去済みのfastqファイルを入力とする。
 
 ## Contents
 > scripts
@@ -15,9 +15,11 @@ qiime2を用いた解析パイプラインを自動化するためのシェル�
 - `q2Diversity.sh` 
 - `q2PlotPCOA.R` 
 - primer配列除去 ペアエンド結合(予定) 
+- qiime feature-classifier 学習機作成(予定)
+- fastaファイルのインポートと系統推定(予定)
 
 ## Usage
-- conda環境変数ファイルのパスとqiime2のconda環境名を指定することで、異なる解析環境でも実行可
+- conda環境変数ファイルのパスとqiime2の環境名を指定することで、異なる解析環境でも実行可
 
 ```sh
 # aruguments

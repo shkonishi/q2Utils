@@ -63,7 +63,7 @@ if [[ "$#" = 0 ]]; then print_doc; exit 1; fi
 
 # 2. オプション引数の処理
 #  2.1. オプション引数の入力
-while getopts e:q:spF:R:a:f:x:m:h OPT
+while getopts e:q:spF:R:a:f:x:m:c:h OPT
 do
   case $OPT in
     "e" ) CENV="$OPTARG";;
@@ -75,10 +75,11 @@ do
     "a" ) VALUE_a="$OPTARG";;
     "f" ) VALUE_f="$OPTARG";;
     "x" ) VALUE_x="$OPTARG";;
-    "m" ) VALUE_m="$OPTARG";;
+    "m" ) META="$OPTARG";;
+    "c" ) NT="$OPTARG";;
     "h" ) print_doc ; exit 1 ;; 
     *) print_doc ; exit 1 ;; 
-     \? ) print_doc; exit 1 ;;
+    \? ) print_doc; exit 1 ;;
   esac
 done
 shift $(expr $OPTIND - 1)
@@ -134,7 +135,8 @@ else
     echo "[ERROR] The optin flag [-s|-p] as single or paired end,  must be set."
     exit 1
 fi
-if [[ -n "$VALUE_m" ]]; then META=${VALUE_m}; fi
+if [[ -n "$META" && ! -f "$META" ]]; then echo "[ERROR] The ${META} does not exist." >&2 ; exit 1 ; fi
+if [[ -z "$NT" ]]; then NT=4 ; elif [[ -n "$NT" &&  ! $NT =~ ^[0-9]+$ ]] ; then echo "[ERROR] ${NT} is not an integer"; exit 1 ; fi
 
 # 3. コマンドライン引数の処理
 if [[ $# = 1 && -d $1 ]]; then
@@ -160,6 +162,7 @@ Refference classifier for sklearn        [ ${CLF} ]
 Refference fasta for blast               [ ${REFA} ]
 Refference taxonomy for blast            [ ${RETAX} ]
 metadata for drawing bar-plot            [ ${META} ]
+number of threads                        [ ${NT} ]
 
 EOS
 
@@ -167,11 +170,11 @@ EOS
 # 5-1. マニフエストファイル作成(q2Manif.sh) & デノイジング(q2Denoise.sh)
 if [[ "${DRCTN}" = "single" ]]; then
   q2Manif.sh -s ${CPFQD}
-  q2Denoise.sh -e ${CENV} -q ${QENV} -s manifest.txt
+  q2Denoise.sh -e ${CENV} -q ${QENV} -c ${NT} -s manifest.txt
 
 elif [[ "${DRCTN}" = "paired" ]]; then
   q2Manif.sh -p ${CPFQD}
-  q2Denoise.sh -e ${CENV} -q ${QENV} -F ${TRUNKF} -R ${TRUNKR} -p manifest.txt
+  q2Denoise.sh -e ${CENV} -q ${QENV} -F ${TRUNKF} -R ${TRUNKR} -c ${NT} -p manifest.txt
 fi
 # catch error(工事中)
 
@@ -179,17 +182,17 @@ fi
 if [[ -e ${CLF} && ! -e ${REFA} && ! -e ${RETAX} ]] ; then
   echo "# classify-sklearn  was execute."
   if [[ -f ${META} ]] ; then
-    q2Classify.sh -e ${CENV} -q ${QENV} -a ${CLF} -m ${META} repset.qza table.qza
+    q2Classify.sh -e ${CENV} -q ${QENV} -a ${CLF} -m ${META}  -c ${NT} -s repset.qza -t table.qza
   else
-    q2Classify.sh -e ${CENV} -q ${QENV} -a ${CLF} repset.qza table.qza
+    q2Classify.sh -e ${CENV} -q ${QENV} -a ${CLF}  -c ${NT} -s repset.qza -t table.qza
   fi
 
 elif [[ ! -e ${CLF} && -e ${REFA} && -e ${RETAX} ]] ; then
   echo "# classify-consensus-blast was execute."
   if [[ -f ${META} ]] ; then
-    q2Classify.sh -e ${CENV} -q ${QENV} -f ${REFA} -x ${RETAX}  -m ${META} repset.qza table.qza
+    q2Classify.sh -e ${CENV} -q ${QENV} -f ${REFA} -x ${RETAX}  -m ${META} -c ${NT} -s repset.qza -t table.qza
   else
-    q2Classify.sh -e ${CENV} -q ${QENV} -f ${REFA} -x ${RETAX} repset.qza table.qza 
+    q2Classify.sh -e ${CENV} -q ${QENV} -f ${REFA} -x ${RETAX} -c ${NT} -s repset.qza -t table.qza
   fi
 
 else 
@@ -203,6 +206,5 @@ q2Merge.sh -e ${CENV} -q ${QENV} -t table.qza -s repset.qza -x taxonomy.qza
 
 # 5-4. 代表配列系統樹作成(q2Tree.sh)
 q2Tree.sh  -e ${CENV} -q ${QENV} -s repset.qza -t taxonomy.qza 
-# q2Tree.sh -e ${CENV} -q ${QENV} -s Results/otu_filtered_asv.qza  Results/otu_filtered_tax.qza
 
 exit 0

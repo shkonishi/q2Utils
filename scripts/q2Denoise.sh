@@ -151,12 +151,12 @@ cat << EOS >&2
 conda environmental variables                           [ ${CENV} ]
 qiime2 environment                                      [ ${QENV} ]
 Manifest file                                           [ ${MNFST} ]
-Format of manifest file :                               [ ${MFMT} ]
-Paired/Single end :                                     [ ${DRCTN} ]
+Format of manifest file                                 [ ${MFMT} ]
+Paired/Single end                                       [ ${DRCTN} ]
 The position to be truncated at Read1:                  [ ${TRUNKF} ]
 The position to be truncated at Read2                   [ ${TRUNKR} ]
 Reads shorter than this value will be discarded(single) [ ${TRUNKL} ]
-Number of threads :                                     [ ${NT} ]
+Number of threads                                       [ ${NT} ]
 
 EOS
 
