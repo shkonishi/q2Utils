@@ -12,11 +12,11 @@ qiime2を用いた解析パイプラインを自動化するためのシェル�
 - `q2Pipe.sh`  上記の内容を一括で実行
 
 > accessories
-- `q2Diversity.sh` 
-- `q2PlotPCOA.R` 
-- primer配列除去 ペアエンド結合(予定) 
+- `q2Diversity.sh` alpha多様性解析、beta多様性解析、主座標分析その他 
+- `q2PlotPCOA.R` 主座標分析の作図
+- `cutamp.sh` primer配列除去 ペアエンド結合(cutadapt, fastq-joinが必要) 
 - qiime feature-classifier 学習機作成(予定)
-- fastaファイルのインポートと系統推定(予定)
+- fastaファイルのインポートと系統推定(q2Classify.shに追加予定)
 
 ## Usage
 - conda環境変数ファイルのパスとqiime2の環境名を指定することで、異なる解析環境でも実行可

@@ -200,7 +200,6 @@ function joinampz () {
 }
 
 ## 5.2. Main routine
-
 ### Cutadapt
 mkdir -p ${OUT}
 if [[ ! ${FQD} = "" ]]; then 
