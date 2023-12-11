@@ -173,7 +173,7 @@ function cutamp (){
   ## echo -e $PFX"\t"$RP1RC"\t"$FP1RC"\t"$CUTLOG"\t"$FLGD"\t"$OPTD"\t"$OUT 
   
   # Run cutadapt
-  cmd="cutadapt ${OPTD} -j ${THRD} -q ${QV},${QV} -g ${FP1} -a ${RP1RC} -G ${RP1} -A ${FP1RC} -o ${R1CUT} -p ${R2CUT} ${R1} ${R2} > ${CUTLOG}" 
+  cmd="cutadapt ${OPTD} -j ${THRD} -q ${QV},${QV} -m 1 -g ${FP1} -a ${RP1RC} -G ${RP1} -A ${FP1RC} -o ${R1CUT} -p ${R2CUT} ${R1} ${R2} > ${CUTLOG}" 
   echo ${cmd} >&2 ; eval ${cmd}
 }
 
