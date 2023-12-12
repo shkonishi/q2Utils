@@ -34,28 +34,28 @@ CMDNAME=$(basename $0)
 function print_doc() {
 cat << EOS
 使用法:
-    $CMDNAME [オプション]
+  $CMDNAME [オプション]
    
 説明:
-    このプログラムではqiime2のfeature tableと検体のメタデータファイルを入力として、多様性解析を行います。
-    オプションとして系統解析データ(rooted-tree.qza)を追加した場合、レアファクションカーブの描画とベータ多様性解析
-    オプションとしてtaxonomyデータ(taxonomy.qza)を追加した場合、heatmapを作成します。
-    レアファクションカーブを描画する場合、最小リード数を指定する必要があり、feature-tableから最小リード数を取得します。
-    またメタデータファイルをオプションで指定することも可能です。
+  このプログラムではqiime2のfeature tableと検体のメタデータファイルを入力として、多様性解析を行います。
+  オプションとして系統解析データ(rooted-tree.qza)を追加した場合、レアファクションカーブの描画とベータ多様性解析
+  オプションとしてtaxonomyデータ(taxonomy.qza)を追加した場合、heatmapを作成します。
+  レアファクションカーブを描画する場合、最小リード数を指定する必要があり、feature-tableから最小リード数を取得します。
+  またメタデータファイルをオプションで指定することも可能です。
 
-    # 01_alpha-rarefaction
-    # 02_Kruskal-wallis test of alpha-diversity
-    # 03_PCoA plots of beta diversity 
-    # 04_heatmap_with_HCA
+  # 01_alpha-rarefaction
+  # 02_Kruskal-wallis test of alpha-diversity
+  # 03_PCoA plots of beta diversity 
+  # 04_heatmap_with_HCA
 
-    qiime diversity alpha-rarefaction
-    qiime diversity alpha
-    qiime diversity alpha-group-significance adjusted p-value of Benjamini & Hochberg correction.
-    qiime diversity core-metrics-phylogenetic
-    qiime diversity beta-group-significance
-    qiime feature-table filter-features
-    qiime taxa collapse
-    qiime feature-table heatmap
+  qiime diversity alpha-rarefaction
+  qiime diversity alpha
+  qiime diversity alpha-group-significance adjusted p-value of Benjamini & Hochberg correction.
+  qiime diversity core-metrics-phylogenetic
+  qiime diversity beta-group-significance
+  qiime feature-table filter-features
+  qiime taxa collapse
+  qiime feature-table heatmap
 
 オプション: 
   -e    conda環境変数パス[default: ${HOME}/miniconda3/etc/profile.d/conda.sh ]

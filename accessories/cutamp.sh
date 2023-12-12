@@ -37,6 +37,7 @@ cat << EOS
   -p    プライマーファイル[default: primers.txt]
   -r    リージョン選択 [e.g. : v3v4]
   -s    fastqファイルのサフィックス[default: fastq.gz]
+  -j    fastq-joinを用いてペアエンド結合を実施
   -o    cutadaptの出力ディレクトリ
   -O    fastq-joinの出力ディレクトリ
 
@@ -61,7 +62,10 @@ cat << EOS
   $CMDNAME -r v3v4 -s fq.gz read1.fq.gz read2.fq.gz
 
   # ペアエンド結合
-  $CMDNAME -j -r v3v4 ./fastq_dir  
+  $CMDNAME -j -r v3v4 ./fastq_dir
+
+  # フルオプション指定
+  cutamp.sh -p primers.txt -r v3v4 -s fastq.gz -o cutfq -O jnfq -j -q 20 -d -N 16 -t 100 -c 16 ./fastq 2> cutamp.log
 
 EOS
 }
