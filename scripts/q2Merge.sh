@@ -313,7 +313,7 @@ function mtax () {
   fi
 
   # taxonomyデータから分類階層のヘッダ行抽出 (7もしくは8の場合がある, また全てのOTUのrankが7もしくは8階層とは限らない)
-  RANK=($(cut -f2 ${TTAX} | awk -F"; " 'BEGIN{OFS="\t"}NR>1{for(i=1;i<=NF;i++){sub("__.*$", "", $i)};print }' | sort | uniq | tail -1))
+  RANK=($(cut -f2 ${TTAX} | grep -v "Unassigned" | awk -F"; " 'BEGIN{OFS="\t"}NR>1{for(i=1;i<=NF;i++){sub("__.*$", "", $i)};print }' | sort | uniq | tail -1))
   NRANK=${#RANK[@]}
   HDC=($(echo 'ASV_ID' 'Confidence' ${RANK[@]} ${HDTAB[@]}))
 
