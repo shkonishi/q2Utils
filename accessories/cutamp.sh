@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION=0.0.231211
+VERSION=0.0.240129
 AUTHOR=SHOGO_KONISHI
 CMDNAME=$(basename $0)
 
@@ -94,9 +94,9 @@ done
 shift $(expr $OPTIND - 1)
 
 ## 2.2. オプション引数のチェック及びデフォルト値の指定
-if [[ -z "$PRM" ]]; then PRM="primers.txt" ; fi
-if [[ ! -f "$PRM" ]]; then echo "[ERROR]" ; exit 1; fi
-if [[ -z "$REGION" ]]; then echo "[ERROR]" ; exit 1; fi
+if [[ -z "$PRM" ]]; then PRM="$(dirname $0)/primers.txt" ; fi
+if [[ ! -f "$PRM" ]]; then echo "[ERROR] '$PRM' does not exist." ; exit 1; fi
+if [[ -z "$REGION" ]]; then echo "[ERROR] Region name must be set with '-r' option." ; exit 1; fi
 FP=$(cat ${PRM} | awk -F"[\x20\t]+" -v REGION="${REGION}" '$1==REGION{print $2}')
 RP=$(cat ${PRM} | awk -F"[\x20\t]+" -v REGION="${REGION}" '$1==REGION{print $3}')
 if [[ $FP == "" || $RP == "" ]]; then echo "[ERROR] You should select as follows."; cat ${PRM}; echo; exit 1 ;fi
@@ -114,9 +114,10 @@ if [[ "$FLG_j" = 'TRUE' ]]; then
 else
   unset NP TRNK OUTJN
 fi
-#LOG=$(date +"%Y%m%d%H%M")_cutamp.log
+LOG=$(date +"%Y%m%dT%H%M")_cutamp.log
+LOGJN=$(date +"%Y%m%dT%H%M")_join.log
 
-# 3. Command line arguments
+## 2.3. Command line arguments
 if [[ $# = 2 && -f "$1" && -f "$2" && "$1" != "$2" ]]; then
   R1=$1 ; R2=$2
 elif [[ $# = 1 && -d "$1" ]]; then
@@ -130,12 +131,12 @@ else
   echo "[ERROR] fastqファイルがみつかりません" >&2 ; exit 1
 fi
 
-## 2.3. Check optional arguments
+## 3. Check requirements
 if ! command -v cutadapt &> /dev/null; then echo "[ERROR] Could not find cutadapt" >&2 ; exit 1; fi
 if ! command -v fastq-join &> /dev/null; then echo "[ERROR] Could not find fastq-join" >&2 ; exit 1; fi
 
 # 4. Print arguments
-cat << EOS >&2
+cat << EOS | tee -a ${LOG} >&2
 ### Arguments ###
 Primer file                     [ ${PRM} ]
 Region name                     [ ${REGION} ]
@@ -168,16 +169,17 @@ function cutamp (){
   function revcomp(){ echo $1 | tr ATGCYRKMWBVDHNatgcyrkmwbvdhn TACGRYMKWVBHDNtacgrymkwvbhdn | rev ; }
 
   # Arguments
-  PFX=$(basename $R1 | cut -f1 -d"_")
-  RP1RC=$(revcomp ${RP1}); FP1RC=$(revcomp ${FP1})
-  CUTLOG=${OUT}/${PFX}_cut.log 
-  R1CUT=${OUT}/${PFX}_cut_R1.fastq.gz ; R2CUT=${OUT}/${PFX}_cut_R2.fastq.gz
+  local PFX=$(basename $R1 | cut -f1 -d"_")
+  local RP1RC=$(revcomp ${RP1}); local FP1RC=$(revcomp ${FP1})
+  local CUTLOG=${OUT}/${PFX}_cut.log 
+  local R1CUT=${OUT}/${PFX}_cut_R1.fastq.gz ; local R2CUT=${OUT}/${PFX}_cut_R2.fastq.gz
+
   if [[ ${FLGD} == 'TRUE' ]] ; then OPTD='--discard-untrimmed' ; fi
   if [[ ! -d ${OUT} ]] ; then echo "[ERROR] The output directory dones not exist" ; return 1 ; fi
   ## echo -e $PFX"\t"$RP1RC"\t"$FP1RC"\t"$CUTLOG"\t"$FLGD"\t"$OPTD"\t"$OUT 
   
   # Run cutadapt
-  cmd="cutadapt ${OPTD} -j ${THRD} -q ${QV},${QV} -m 1 -g ${FP1} -a ${RP1RC} -G ${RP1} -A ${FP1RC} -o ${R1CUT} -p ${R2CUT} ${R1} ${R2} > ${CUTLOG}" 
+  cmd="cutadapt ${OPTD} -j ${THRD} -q ${QV},${QV} -m 1 -n 2 -g ${FP1} -a ${RP1RC} -G ${RP1} -A ${FP1RC} -o ${R1CUT} -p ${R2CUT} ${R1} ${R2} > ${CUTLOG}" 
   echo ${cmd} >&2 ; eval ${cmd}
 }
 
@@ -185,23 +187,54 @@ function joinampz () {
   unset PFX JNFQ
   # usage: joinampz cutqt_1.fq.gz cutqt_2.fq.gz 8 100 ./jnfq
   local R1=$1 ; local R2=$2 ; local NP=$3 ; local LEN=$4 ; local JNOUT=$5
-
-  # Function of filtering read length
-  function fqFltLen () { 
-      local FQ=$1; local LEN=$2 
-      cat ${FQ} | awk '{ printf("%s",$0); n++; if(n%4==0) { printf("\n");} else { printf("\t");} }' \
-      | awk -F"\t" -v LEN=${LEN} '{if(length($2)>LEN)printf("%s", $1"\n"$2"\n"$3"\n"$4"\n");}' 
-  }
+  local PFX=$(basename $R1 | cut -f1 -d"_")
+  local JNLOG="${JNOUT}/${PFX}_join.log"
 
   # Run fastq join
   PFX=$(basename $R1 | cut -f1 -d"_")
-  cmd="fastq-join -p ${NP} <(gunzip -c ${R1}) <(gunzip -c ${R2}) -o ${JNOUT}/${PFX}_%.fq"
-  echo ${cmd} >&2 ; eval ${cmd}
-  
-  # Fastq filtering with read length and compressed 
-  JNFQ=${JNOUT}/${PFX}_join.fq 
-  fqFltLen ${JNFQ} ${LEN} | gzip > ${JNFQ}.gz && rm ${JNFQ}
+  echo ">${PFX}" > ${JNLOG}
+  cmd="fastq-join -p ${NP} <(gunzip -c ${R1}) <(gunzip -c ${R2}) -o ${JNOUT}/${PFX}_%.fastq "
+  echo ${cmd} >&2 ; eval ${cmd} >> ${JNLOG}
+
 }
+
+function fqFltLen () { 
+    local FQ=$1; local LEN=$2 
+    cat ${FQ} | awk '{ printf("%s",$0); n++; if(n%4==0) { printf("\n");} else { printf("\t");} }' \
+    | awk -F"\t" -v LEN=${LEN} '{if(length($2)>LEN)printf("%s", $1"\n"$2"\n"$3"\n"$4"\n");}' 
+}
+
+function fqHistLen () { 
+  awk '(NR - 1) % 4 == 1 { print length($0) }' $1 | sort | uniq -c | sort -n -k2,2 
+}
+function fqPer () {
+  FQ=$1
+  CNT=$((`cat $FQ |wc -l`/4))
+  P10=$(($CNT*10/100)); P30=$(($CNT*30/100)); P50=$(($CNT*50/100)); P70=$(($CNT*70/100)); P90=$(($CNT*90/100)); 
+  Per10=$(fqHistLen $FQ | sed -e "s/^ *//" | awk -v p10=$P10 '{cumsum+=$1; if(cumsum > p10){print $2; exit;}}')
+  Per30=$(fqHistLen $FQ | sed -e "s/^ *//" | awk -v p30=$P30 '{cumsum+=$1; if(cumsum > p30){print $2; exit;}}')
+  Per50=$(fqHistLen $FQ | sed -e "s/^ *//" | awk -v p50=$P50 '{cumsum+=$1; if(cumsum > p50){print $2; exit;}}')
+  Per70=$(fqHistLen $FQ | sed -e "s/^ *//" | awk -v p70=$P70 '{cumsum+=$1; if(cumsum > p70){print $2; exit;}}')
+  Per90=$(fqHistLen $FQ | sed -e "s/^ *//" | awk -v p90=$P90 '{cumsum+=$1; if(cumsum > p90){print $2; exit;}}')
+  echo -e $Per10";"$Per30";"$Per50";"$Per70";"$Per90
+}
+function fqzCnt () { 
+  ID=$(basename $1 | cut -f1 -d"_"); echo -e "${ID}\t$(($(gunzip -c $1 | wc -l)/4))"; 
+}
+# function cut_log () {}
+
+function join_log () {
+  local JNLOG=$1
+  cat ${JNLOG} | awk -F'\t' '{ \
+  if($1~/^>/){sub(">","",$1); printf $1"\t";} \
+  else if($1~/Total reads:/){sub("Total reads: ","",$1); printf $1"\t";} \
+  else if($1~/Total joined:/){sub("Total joined: ","",$1);printf $1"\t"} \
+  else if($1~/Average join len:/){sub("Average join len: ","",$1);printf $1"\t" } \
+  else if($1~/Stdev join len:/){sub("Stdev join len: ","",$1);printf $1"\t" } \
+  else if($1~/Version:/){sub("Version: ","",$1);print $1 }}'
+
+}
+
 
 ## 5.2. Main routine
 ### Cutadapt
@@ -211,21 +244,38 @@ if [[ ! ${FQD} = "" ]]; then
    r2=${r1/_R1/_R2} 
    if [[ ${r1} == "" || ${r2} == "" ]] ; then echo "[ERROR] Read1, Read2, or both missing." >&2 ; exit 1 ; fi
    #echo -e $r1"\t"$r2"\t"$FP"\t"$RP"\t"$OUT"\t"$FLG_d"\t"$NT"\t"$QV
-   cutamp ${r1} ${r2} ${FP} ${RP} ${OUT} ${FLG_d} ${NT} ${QV}
+   cutamp ${r1} ${r2} ${FP} ${RP} ${OUT} ${FLG_d} ${NT} ${QV} | tee -a ${LOG} >&2
   done
 else 
   #echo -e $R1"\t"$R2"\t"$FP"\t"$RP"\t"$OUT"\t"$FLG_d"\t"$NT"\t"$QV
   cutamp $R1 $R2 $FP $RP $OUT $FLG_d $NT $QV 
 fi
+# Parse cutadapt log
 
 ### fastq-join
 if [[ ${FLG_j} = 'TRUE' ]]; then
   mkdir -p ${OUTJN}
   for r1 in $(ls ${OUT}/*_R1.fastq.gz) ; do 
+    PFX=$(basename $r1 | cut -f1 -d"_")
     r2=${r1/_R1/_R2}
-    #echo -e $r1"\t"$r2"\t"$NP"\t"$TRNK"\t"$OUTJN
-    joinampz ${r1} ${r2} ${NP} ${TRNK} ${OUTJN} 
-  done > fastqjoin.log
+    joinampz ${r1} ${r2} ${NP} ${TRNK} ${OUTJN} | tee -a ${LOG} >&2
+
+  done 
+
+  # Fastq filtering with read length and compressed 
+  JNFQ=${OUTJN}/${PFX}_join.fastq
+  for i in ${OUTJN}/*_join.fastq; do 
+   PFX=$(basename $i | cut -f1 -d"_")
+   fqFltLen ${i} ${TRNK} | gzip > ${i}.gz
+  done
+
+  ## Stats of joined fastq # Parse fastq-join log
+  paste <(cat ${OUTJN}/*.log | join_log) \
+  <(for i in ${OUTJN}/*_join.fastq; do fqPer $i; done ) \
+  <(for i in ${OUTJN}/*_join.fastq.gz; do echo $(($(gunzip -c $i | wc -l)/4)) ; done ) > ${LOGJN}
+
+  # Remove trash
+  rm ${OUTJN}/*.fastq
 fi
 
 exit 0
