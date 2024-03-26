@@ -5,9 +5,7 @@ CMDNAME=$(basename $0)
 
 # NOTE: anaconda/miniconda 判別
 # NOTE: observed_otus / observed_features 選択
-# NOTE: メタデータの値はカテゴリカルだけ? 
-# (1/1) Invalid value for '--m-sample-metadata-file': Metadata column is of
-#  type 'numeric', but expected Categorical.
+
 
 ### Contents: Diversity ###
 # 1. ドキュメント
