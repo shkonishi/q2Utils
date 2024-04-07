@@ -120,10 +120,10 @@ if [[ ${FLG_s} == "TRUE" && ${FLG_p} == "TRUE" ]] || [[ -z ${FLG_s} && -z ${FLG_
 
 elif [[ ${FLG_s} == "TRUE" && ${FLG_p} != "TRUE" ]]; then # single end
   ## ファイル名取得
-  FQS=$(ls $CPFQD | grep -e ".fastq$" -e ".fastq.gz$" -e ".fq$" -e ".fq.gz$")
+  FQS=($(ls $CPFQD | grep -e ".fastq$" -e ".fastq.gz$" -e ".fq$" -e ".fq.gz$"))
   ## マニフェストファイル作成 
   for r1 in ${FQS[@]} ; do
-    ID=$(echo ${r1%.*} | cut -f 1 -d "_")
+    ID=$(echo ${r1%%.*} | cut -f 1 -d "_")
     cpfq_r1=${CPFQD}/${r1}
     if [[ "${DIV}" == "\t" ]];then # tsv
         echo -e ${ID}${DIV}${cpfq_r1} >> ${OUTPUT}
@@ -138,7 +138,7 @@ elif [[ ${FLG_s} != "TRUE" && ${FLG_p} == "TRUE" ]]; then # paired-end
   ## マニフェストファイル作成 
   for r1 in ${FQS[@]}; do
     r2=$(echo $r1 | sed -e 's/_R1/_R2/' -e 's/_1\./_2\./')
-    ID=$(echo ${r1%.*} | cut -f 1 -d "_")
+    ID=$(echo ${r1%%.*} | cut -f 1 -d "_")
     cpfq_r1=${CPFQD}/${r1}
     cpfq_r2=${CPFQD}/${r2}
     

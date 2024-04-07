@@ -266,4 +266,6 @@ echo "# [CMND] Export feature-table in qzv format." >&2
 cmd10="qiime feature-table summarize --i-table table.qza --o-visualization ./${OUTDZ}/table.qzv"
 echo ${cmd10} >&2 ; eval ${cmd10}
 
+
+
 exit 0

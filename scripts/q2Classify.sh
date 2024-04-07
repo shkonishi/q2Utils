@@ -101,7 +101,7 @@ do
     "b" ) OBP="$OPTARG";;
     "O" ) OTT="$OPTARG";;
     "h" ) print_doc ; exit 1 ;;
-    *) print_doc ; exit 1;;
+    * ) print_doc ; exit 1;;
     \? ) print_doc ; exit 1 ;;
   esac
 done
@@ -156,7 +156,7 @@ fi
 
 ### 2.2.5. その他のオプション引数の判定
 ## ASV配列, feature-tableの判定
-if [[ -z "${ASV}" || -z "${TAB}"  ]]; then echo "[ERROR] All options t/s/x must be selected." >&2 ; exit 1 ; fi
+if [[ -z "${ASV}" || -z "${TAB}"  ]]; then echo "[ERROR] All options t/s must be selected." >&2 ; exit 1 ; fi
 if [[ ! -f ${ASV} || ${ASV##*.} != 'qza' ]] ; then echo "[ERROR] The ASV sequence, ${ASV}, does not exist or is not in qza format." >&2 ; exit 1 ; fi
 if [[ ! -f ${TAB} || ${TAB##*.} != 'qza' ]] ; then echo "[ERROR] The feature-table ${TAB} does not exist or is not in qza format." >&2 ; exit 1 ; fi
 if [[ -z "$CONF" ]]; then CONF=0.7 ; fi
