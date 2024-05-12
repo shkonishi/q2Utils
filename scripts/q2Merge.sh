@@ -305,7 +305,7 @@ function mtax () {
 
   # カウントデータからヘッダ行抽出
   if head -1 ${TTAB} | grep -e "^# Constructed from biom file$" > /dev/null ; then 
-    HDTAB=($(tail +2 ${TTAB} | head -1 | cut -f2-))
+    HDTAB=($(tail -n +2 ${TTAB} | head -1 | cut -f2-))
   elif head -1 ${TTAB} | grep -e "^#OTU ID" > /dev/null ; then 
     HDTAB=($(grep -e "^#OTU ID" ${TTAB} | head -1 | cut -f2-))
   else
@@ -322,24 +322,24 @@ function mtax () {
   if [[ $NRANK == '7' ]]; then
     echo ${HDC[@]} | tr ' ' '\t' > $MTAB
     if grep -q "^#" ${TTAB} > /dev/null ; then
-      paste <(tail +2 $TTAX | cut -f1,3) \
-      <(tail +2 ${TTAX} | cut -f2 | awk -F"; " -v nrank=$NRANK '{print $1"\t"$2"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7}') \
+      paste <(tail -n +2 $TTAX | cut -f1,3) \
+      <(tail -n +2 ${TTAX} | cut -f2 | awk -F"; " -v nrank=$NRANK '{print $1"\t"$2"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7}') \
       <(grep -v "^#" ${TTAB}) | awk -F"\t" '$1==$10' | cut -f1-9,11- >> $MTAB
     else 
-      paste <(tail +2 $TTAX | cut -f1,3) \
-      <(tail +2 ${TTAX} | cut -f2 | awk -F"; " -v nrank=$NRANK '{print $1"\t"$2"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7}') \
-      <(tail +2 ${TTAB}) | awk -F"\t" '$1==$10' | cut -f1-9,11- >> $MTAB
+      paste <(tail -n +2 $TTAX | cut -f1,3) \
+      <(tail -n +2 ${TTAX} | cut -f2 | awk -F"; " -v nrank=$NRANK '{print $1"\t"$2"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7}') \
+      <(tail -n +2 ${TTAB}) | awk -F"\t" '$1==$10' | cut -f1-9,11- >> $MTAB
     fi 
   elif [[ $NRANK == '8' ]]; then
     echo ${HDC[@]} | tr ' ' '\t' > $MTAB
     if grep -q "^#" ${TTAB} > /dev/null ; then
-      paste <(tail +2 $TTAX | cut -f1,3) \
-      <(tail +2 ${TTAX} | cut -f2 | awk -F"; " -v nrank=$NRANK '{print $1"\t"$2"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7"\t"$8}') \
+      paste <(tail -n +2 $TTAX | cut -f1,3) \
+      <(tail -n +2 ${TTAX} | cut -f2 | awk -F"; " -v nrank=$NRANK '{print $1"\t"$2"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7"\t"$8}') \
       <(grep -v "^#" ${TTAB}) | awk -F"\t" '$1==$11' | cut -f1-10,12- >> $MTAB
     else
-      paste <(tail +2 $TTAX | cut -f1,3) \
-      <(tail +2 ${TTAX} | cut -f2 | awk -F"; " -v nrank=$NRANK '{print $1"\t"$2"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7"\t"$8}') \
-      <(tail +2 ${TTAB}) | awk -F"\t" '$1==$11' | cut -f1-10,12- >> $MTAB
+      paste <(tail -n +2 $TTAX | cut -f1,3) \
+      <(tail -n +2 ${TTAX} | cut -f2 | awk -F"; " -v nrank=$NRANK '{print $1"\t"$2"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7"\t"$8}') \
+      <(tail -n +2 ${TTAB}) | awk -F"\t" '$1==$11' | cut -f1-10,12- >> $MTAB
     fi
   else 
     echo -e "[ERROR] The file format of inputs was invalid." >&2
@@ -377,14 +377,14 @@ function mtseq () {
   # ランク毎のテーブルに整形、未分類のセルには空文字を入れる(そのままだとカラム数が揃わない)
   if [[ $NRANK == '7' ]]; then
     echo ${HDC[@]} | tr ' ' '\t' > $MSEQ
-    paste <(tail +2 $TTAX | cut -f1,3) \
-    <(tail +2 ${TTAX} | cut -f2 | awk -F"; " -v nrank=$NRANK '{print $1"\t"$2"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7}') \
+    paste <(tail -n +2 $TTAX | cut -f1,3) \
+    <(tail -n +2 ${TTAX} | cut -f2 | awk -F"; " -v nrank=$NRANK '{print $1"\t"$2"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7}') \
     <(cat ${TSEQ} | awk 'BEGIN{RS=">"; FS="\n"} NR>1 {print $1"\t"$2;}') | awk -F"\t" '$1==$10' | cut -f1-9,11- >> $MSEQ
 
   elif [[ $NRANK == '8' ]]; then
     echo ${HDC[@]} | tr ' ' '\t' > $MSEQ
-    paste <(tail +2 $TTAX | cut -f1,3) \
-    <(tail +2 ${TTAX} | cut -f2 | awk -F"; " -v nrank=$NRANK '{print $1"\t"$2"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7"\t"$8}') \
+    paste <(tail -n +2 $TTAX | cut -f1,3) \
+    <(tail -n +2 ${TTAX} | cut -f2 | awk -F"; " -v nrank=$NRANK '{print $1"\t"$2"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7"\t"$8}') \
     <(cat ${TSEQ} | awk 'BEGIN{RS=">"; FS="\n"} NR>1 {print $1"\t"$2;}') | awk -F"\t" '$1==$11' | cut -f1-10,12- >> $MSEQ
   else
     echo -e "[ERROR] The file format of inputs was invalid." >&2
